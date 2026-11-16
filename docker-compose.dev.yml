@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ilmdas
+      POSTGRES_PASSWORD: ilmdas # pragma: allowlist secret
+      POSTGRES_DB: ilmdas
+    ports:
+      - "5433:5432"
+    volumes:
+      - ilmdas_postgres:/var/lib/postgresql/data
+
+  elasticsearch:
+    image: elasticsearch:8.15.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - ilmdas_elasticsearch:/usr/share/elasticsearch/data
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ilmdas
+      MINIO_ROOT_PASSWORD: ilmdas-local-only # pragma: allowlist secret
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    volumes:
+      - ilmdas_minio:/data
+
+volumes:
+  ilmdas_postgres:
+  ilmdas_elasticsearch:
+  ilmdas_minio:

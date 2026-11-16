@@ -1,0 +1,7 @@
+-r base.txt
+pytest==8.3.3
+pytest-django==4.9.0
+ruff==0.6.9
+mypy==1.15.0
+django-stubs==5.2.2
+pre-commit==4.2.0

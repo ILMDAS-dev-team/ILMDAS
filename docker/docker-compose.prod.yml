@@ -1,0 +1,15 @@
+# Production-shaped service list for the OSTA data center.
+# Host names, TLS, and secrets belong in the system design, not in this file.
+# Do not put real credentials here.
+
+services:
+  postgres:
+    image: postgres:16
+  elasticsearch:
+    image: elasticsearch:8.15.3
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+  backend:
+    image: ilmdas-backend:local
+  frontend:
+    image: ilmdas-frontend:local

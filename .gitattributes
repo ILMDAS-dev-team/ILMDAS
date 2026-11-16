@@ -1,0 +1,25 @@
+# normalize line endings in git - always store as LF, checkout as-is on all platforms
+* text=auto eol=lf
+
+# shell scripts must always be LF or they break on Linux/Docker
+*.sh text eol=lf
+
+# windows-only files can use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# binary files - don't touch line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pptx binary
+*.docx binary
+*.pdf binary
+*.zip binary

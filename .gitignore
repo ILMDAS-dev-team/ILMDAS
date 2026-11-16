@@ -1,0 +1,41 @@
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Django
+staticfiles/
+mediafiles/
+*.sqlite3
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local backups
+/backups/

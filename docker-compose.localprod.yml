@@ -1,0 +1,6 @@
+# Same services as docker-compose.dev.yml.
+# Use this file when rehearsing the local stack under the production-shaped name.
+# It does not add hosts, TLS, or secrets.
+
+include:
+  - docker-compose.dev.yml
