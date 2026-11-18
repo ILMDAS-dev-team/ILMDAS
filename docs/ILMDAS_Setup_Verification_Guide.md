@@ -184,8 +184,9 @@ There is no deploy job and no Docker image publish in this workflow.
 
 **D.1 Codecov token**
 
-Add repository secret `CODECOV_TOKEN` so backend and frontend coverage uploads
-succeed (`fail_ci_if_error: true`). Without it, the coverage upload steps fail.
+Optional until Codecov is wired: without `CODECOV_TOKEN`, coverage upload steps
+are skipped. Add the secret when you want uploads; then upload failures fail CI
+(`fail_ci_if_error: true`).
 
 **D.2 Open a trivial pull request into `develop`**
 
@@ -210,7 +211,8 @@ or [ILMDAS_Team_CI-CD.md](ILMDAS_Team_CI-CD.md).
 | What you see | What to do |
 |---|---|
 | Coverage below 80% | Read the missing lines report; add tests for `apps.core` before omitting stubs |
-| Codecov upload fails in CI | Set `CODECOV_TOKEN` on the repository |
+| Codecov upload skipped | Expected until `CODECOV_TOKEN` is set |
+| Codecov upload fails with token set | Check token and `codecov.yml` |
 | `next build` fails | Run `npm run build` locally; fix type or import errors |
 | Health failed / 503 | Confirm Postgres 5433, ES 9200, MinIO 9010, and private bucket |
 | Port clash | Adjust host ports in `docker-compose.dev.yml` and matching `.env` URLs |

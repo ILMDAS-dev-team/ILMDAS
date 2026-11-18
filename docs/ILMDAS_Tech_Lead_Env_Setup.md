@@ -31,7 +31,7 @@ approved, expect secrets in these categories:
 | Search | Elasticsearch URL and index name |
 | Object storage | S3 endpoint, access keys, private bucket name, region |
 | IIIF | `IIIF_ENDPOINT` only when Cantaloupe (or equivalent) is available |
-| CI | `CODECOV_TOKEN` (already required for coverage uploads) |
+| CI | `CODECOV_TOKEN` (optional; enables Codecov uploads when set) |
 
 ## What to add later (not now)
 

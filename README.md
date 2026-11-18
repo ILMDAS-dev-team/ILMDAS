@@ -153,7 +153,7 @@ npm run build
 npm run test:e2e
 ```
 
-Continuous integration runs those checks (backend coverage gate 80%, frontend coverage + `next build`, Playwright smoke, Codecov). A failing command fails the workflow. Deployment, Docker image publish, and PostGIS checks are not in CI. See [docs/ILMDAS_Team_CI-CD.md](docs/ILMDAS_Team_CI-CD.md).
+Continuous integration runs those checks (backend coverage gate 80%, frontend coverage + `next build`, Playwright smoke). Codecov upload runs when `CODECOV_TOKEN` is set. A failing command fails the workflow. Deployment, Docker image publish, and PostGIS checks are not in CI. See [docs/ILMDAS_Team_CI-CD.md](docs/ILMDAS_Team_CI-CD.md).
 
 ## Further reading
 

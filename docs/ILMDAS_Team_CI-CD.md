@@ -56,8 +56,9 @@ A failing command fails the job. Jobs do not set `continue-on-error` on test ste
 | 5 | Frontend smoke | Playwright Chromium on public + staff | `cd frontend` → `npx playwright install chromium` → `npm run test:e2e` |
 
 Suite-wide backend coverage must stay at **80%**. Codecov patch target is **90%**
-([`codecov.yml`](../codecov.yml)). Set repository secret `CODECOV_TOKEN` or the
-upload steps fail (`fail_ci_if_error: true`).
+([`codecov.yml`](../codecov.yml)). Codecov upload runs only when repository secret
+`CODECOV_TOKEN` is set; without it the step is skipped and CI stays green. With
+the token set, upload failures fail the job (`fail_ci_if_error: true`).
 
 Jest collects coverage but does **not** enforce a Jest `%` threshold (same as
 OUPDMS). Playwright smoke runs on every PR (stronger than OUPDMS’s staging-gated

@@ -150,7 +150,8 @@ npm run test:e2e
 
 Pytest uses SQLite, so it does not need the Docker services. The health, index, storage, and IIIF tests use fakes for the failure and success paths. `migrate` against `DATABASE_URL` is the check that the same migrations apply to PostgreSQL.
 
-CI also uploads coverage to Codecov (patch target 90%). Set `CODECOV_TOKEN` on the GitHub repository or the upload step fails.
+CI uploads coverage to Codecov (patch target 90%) when `CODECOV_TOKEN` is set.
+Without the secret, upload is skipped; the local coverage gates still apply.
 
 ## Stop
 
@@ -170,7 +171,8 @@ Or: `make down`. Add `-v` only when you intend to delete the local database, ind
 | Health says object storage is unreachable | Create the private bucket, or confirm MinIO is on port 9010 |
 | Port 5433, 8010, 9010, or 9200 is in use | Stop the other process or change the host port in `docker-compose.dev.yml` and the matching URL in `.env` |
 | Coverage below 80% | Read the missing-lines report; add tests before changing omit rules |
-| Codecov upload fails in CI | Add repository secret `CODECOV_TOKEN` |
+| Codecov upload skipped in CI | Optional until `CODECOV_TOKEN` is set; coverage gates still run locally in pytest/Jest |
+| Codecov upload fails with token set | Fix the Codecov config or token; upload uses `fail_ci_if_error: true` |
 | `next build` fails | Run `npm run build` locally and fix the reported errors |
 | `npm ci` cannot find the lockfile | Run `npm install` once from `frontend` |
 | Public page shows an administration link | That is a defect. The public layout must not link to `/staff` or Administration |
