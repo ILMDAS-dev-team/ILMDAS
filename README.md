@@ -35,8 +35,12 @@ ilmdas/
 │   └── docker-compose.prod.yml
 ├── docs/
 │   ├── ILMDAS_Dev_Local_Setup.md
-│   └── ILMDAS_Team_CI-CD.md
+│   ├── ILMDAS_Team_CI-CD.md
+│   ├── ILMDAS_Setup_Verification_Guide.md
+│   └── ILMDAS_Tech_Lead_Env_Setup.md
 ├── .github/workflows/ci-cd.yml
+├── codecov.yml
+├── CONTRIBUTING.md
 ├── docker-compose.dev.yml
 ├── Makefile
 └── README.md
@@ -139,14 +143,27 @@ cd backend
 .\.venv\Scripts\ruff check .
 .\.venv\Scripts\ruff format --check .
 .\.venv\Scripts\mypy apps config
-.\.venv\Scripts\python -m pytest
+.\.venv\Scripts\python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
 cd ..\frontend
 npm run lint
 npm run type-check
-npm test
+npm run format:check
+npm run test:coverage
+npm run build
+npm run test:e2e
 ```
 
-Continuous integration runs those checks plus the Playwright smoke test. A failing command fails the workflow. See [docs/ILMDAS_Team_CI-CD.md](docs/ILMDAS_Team_CI-CD.md).
+Continuous integration runs those checks (backend coverage gate 80%, frontend coverage + `next build`, Playwright smoke, Codecov). A failing command fails the workflow. Deployment, Docker image publish, and PostGIS checks are not in CI. See [docs/ILMDAS_Team_CI-CD.md](docs/ILMDAS_Team_CI-CD.md).
+
+## Further reading
+
+| Doc | Purpose |
+|---|---|
+| [docs/ILMDAS_Dev_Local_Setup.md](docs/ILMDAS_Dev_Local_Setup.md) | Full local setup, daily routine, troubleshooting |
+| [docs/ILMDAS_Setup_Verification_Guide.md](docs/ILMDAS_Setup_Verification_Guide.md) | Tech-lead checklist to prove stack + CI gates |
+| [docs/ILMDAS_Team_CI-CD.md](docs/ILMDAS_Team_CI-CD.md) | Branches, CI jobs, pre-PR commands |
+| [docs/ILMDAS_Tech_Lead_Env_Setup.md](docs/ILMDAS_Tech_Lead_Env_Setup.md) | Deploy stub (no servers/jobs yet) |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | PR target, API error shape, checklist |
 
 ## Backend apps
 

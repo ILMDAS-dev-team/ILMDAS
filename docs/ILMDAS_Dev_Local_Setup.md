@@ -4,6 +4,12 @@ This is the developer setup for a Windows machine. Bash users run the same tools
 
 The business baseline (BRS) and the SRS fix the stack: Next.js, Django, PostgreSQL, Elasticsearch, S3-compatible storage, and IIIF/Cantaloupe. Flutter is not part of this setup. Deployment to the OSTA data center is not part of this setup.
 
+**Why Django runs on the host:** ILMDAS does not need GDAL/PostGIS system libraries, so the API uses a normal Python venv. Docker only runs PostgreSQL, Elasticsearch, and MinIO. The frontend also runs natively for fast hot reload.
+
+Prove a fresh machine end-to-end with
+[ILMDAS_Setup_Verification_Guide.md](ILMDAS_Setup_Verification_Guide.md).
+Team CI workflow is in [ILMDAS_Team_CI-CD.md](ILMDAS_Team_CI-CD.md).
+
 ## Install the tools
 
 1. Install Git and confirm `git --version`.
@@ -28,6 +34,8 @@ If you already have the folder, open a terminal in `ilmdas`.
 docker compose -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.dev.yml ps
 ```
+
+Or: `make up` (Git Bash / WSL / macOS / Linux).
 
 Wait until `postgres` and `elasticsearch` are running. Elasticsearch can take a minute the first time.
 
@@ -101,6 +109,13 @@ The staff IIIF page is http://localhost:3010/staff/status. With an empty `IIIF_E
 
 `frontend/.env` is optional. Set `NEXT_PUBLIC_API_URL=http://localhost:8010` if the API is not on that address. The client sends `X-Correlation-ID` on every request.
 
+## Daily routine
+
+1. `docker compose -f docker-compose.dev.yml up -d` (or `make up`)
+2. Activate the backend venv and run `python backend\manage.py runserver 127.0.0.1:8010`
+3. In another terminal: `cd frontend` → `npm run dev`
+4. Before a PR, run the quality commands below (or `make backend-lint`, `make backend-test`, `make frontend-lint`, `make frontend-test`, `make frontend-build`, `make frontend-e2e`)
+
 ## Checks before a change
 
 From the repository root, after the virtual environment exists:
@@ -109,7 +124,7 @@ From the repository root, after the virtual environment exists:
 backend\.venv\Scripts\pre-commit install
 ```
 
-That installs the Ruff, ESLint, Prettier, secret-scan, and file-hygiene hooks. The frontend hooks call ESLint and Prettier through Python.
+That installs the Ruff, ESLint, Prettier, secret-scan, and file-hygiene hooks. The frontend hooks call ESLint and Prettier through Python. Hooks do not run mypy, pytest, or `tsc`.
 
 Backend, from `backend` with the virtual environment active:
 
@@ -117,7 +132,7 @@ Backend, from `backend` with the virtual environment active:
 ruff check .
 ruff format --check .
 mypy apps config
-python -m pytest
+python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
 ```
 
 Frontend, from `frontend`:
@@ -126,13 +141,16 @@ Frontend, from `frontend`:
 npm run lint
 npm run type-check
 npm run format:check
-npm test
+npm run test:coverage
+npm run build
 npm run test:e2e
 ```
 
-`npm test` is Jest. `npm run test:e2e` opens Chromium on http://localhost:3010.
+`npm run test:coverage` is Jest with coverage upload-ready output. `npm run build` is the production Next.js build CI also runs. `npm run test:e2e` opens Chromium on http://localhost:3010.
 
 Pytest uses SQLite, so it does not need the Docker services. The health, index, storage, and IIIF tests use fakes for the failure and success paths. `migrate` against `DATABASE_URL` is the check that the same migrations apply to PostgreSQL.
+
+CI also uploads coverage to Codecov (patch target 90%). Set `CODECOV_TOKEN` on the GitHub repository or the upload step fails.
 
 ## Stop
 
@@ -140,7 +158,7 @@ Pytest uses SQLite, so it does not need the Docker services. The health, index, 
 docker compose -f docker-compose.dev.yml down
 ```
 
-Add `-v` only when you intend to delete the local database, index, and bucket data.
+Or: `make down`. Add `-v` only when you intend to delete the local database, index, and bucket data.
 
 ## Troubleshooting
 
@@ -151,5 +169,8 @@ Add `-v` only when you intend to delete the local database, index, and bucket da
 | Health says object storage is not configured | Set `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, and the MinIO user and password |
 | Health says object storage is unreachable | Create the private bucket, or confirm MinIO is on port 9010 |
 | Port 5433, 8010, 9010, or 9200 is in use | Stop the other process or change the host port in `docker-compose.dev.yml` and the matching URL in `.env` |
+| Coverage below 80% | Read the missing-lines report; add tests before changing omit rules |
+| Codecov upload fails in CI | Add repository secret `CODECOV_TOKEN` |
+| `next build` fails | Run `npm run build` locally and fix the reported errors |
 | `npm ci` cannot find the lockfile | Run `npm install` once from `frontend` |
 | Public page shows an administration link | That is a defect. The public layout must not link to `/staff` or Administration |

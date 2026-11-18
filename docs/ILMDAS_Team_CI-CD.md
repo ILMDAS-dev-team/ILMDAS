@@ -1,45 +1,93 @@
-# ILMDAS continuous integration
+# ILMDAS continuous integration and team workflow
 
-Every pull request and every push to `main` or `develop` runs [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml).
+Every pull request and every push to `main` or `develop` runs
+[`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml).
 
-The workflow has five jobs:
+Deployment to the OSTA data center is **not** part of this workflow. There is no
+Docker image publish, staging auto-deploy, or production `workflow_dispatch`.
+See [ILMDAS_Tech_Lead_Env_Setup.md](ILMDAS_Tech_Lead_Env_Setup.md) for the stub
+checklist when that work is approved.
 
-1. **Backend lint.** Install `backend/requirements/development.txt`, then run Ruff, `ruff format --check`, and mypy.
-2. **Backend tests.** Run pytest after lint succeeds. Pytest uses the test settings and SQLite. It does not need PostgreSQL, Elasticsearch, or MinIO.
-3. **Frontend lint.** `npm ci`, then ESLint, `tsc --noEmit`, and Prettier.
-4. **Frontend tests.** `npm test` runs Jest. The tests check the public and staff shells, the 360px layout rules, and the correlation identifier on the API client.
-5. **Frontend smoke.** Playwright opens the public page and the staff page in Chromium.
+Prove a laptop is green with
+[ILMDAS_Setup_Verification_Guide.md](ILMDAS_Setup_Verification_Guide.md).
+Contribution rules are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-A failing command fails the job. The workflow does not set `continue-on-error` on the test steps.
+## Roles
 
-Deployment to the OSTA data center is not part of this workflow. Production network zones and TLS are specified later in the system design.
+| Role | What you do |
+|---|---|
+| Developers | Branch from `develop`, write tests, open PRs, fix CI failures |
+| Reviewers | Review PRs into `develop`; request changes until checks and standards pass |
+| Tech lead | Owns CI config, Codecov token, branch protection; later owns deploy |
 
-## What to run before you open a pull request
+`.github/CODEOWNERS` is a **scaffold placeholder**. Per-app GitHub owners are
+**not assigned yet**. Reviewers are requested manually until that file is filled
+(same path style as OUPDMS, deferred).
 
-Install the git hooks once, from the repository root, after the backend virtual environment exists:
+## Branches and commits
+
+- Integration branch: `develop`
+- Release / protected: `main`
+- Feature work: `feature/<short-description>` from an up-to-date `develop`
+- Prefer conventional commits: `feat:`, `fix:`, `docs:`, `ci:`, `chore:`
+- Release PRs go from `develop` into `main`
+
+## One-time hooks
+
+After the backend virtual environment exists, from the repository root:
 
 ```powershell
 backend\.venv\Scripts\pre-commit install
 ```
 
-The frontend hooks call ESLint and Prettier through Python. From `backend`:
+Hooks run Ruff (backend), ESLint and Prettier (frontend), detect-secrets, and
+file hygiene. They do **not** run mypy, pytest, or `tsc` (same as OUPDMS).
+
+## CI jobs
+
+A failing command fails the job. Jobs do not set `continue-on-error` on test steps.
+
+| # | Job | What it runs | Reproduce locally |
+|---|---|---|---|
+| 1 | Backend lint | Ruff, `ruff format --check`, mypy | `cd backend` → `ruff check .` → `ruff format --check .` → `mypy apps config` |
+| 2 | Backend tests | `pytest apps/ --cov=apps --cov-report=xml --cov-fail-under=80` + Codecov | `cd backend` → `python -m pytest apps/ --cov=apps --cov-fail-under=80 -v` |
+| 3 | Frontend lint | ESLint, `tsc --noEmit`, Prettier | `cd frontend` → `npm run lint` → `npm run type-check` → `npm run format:check` |
+| 4 | Frontend tests | `npm run test:coverage`, `npm run build`, Codecov | same two commands from `frontend` |
+| 5 | Frontend smoke | Playwright Chromium on public + staff | `cd frontend` → `npx playwright install chromium` → `npm run test:e2e` |
+
+Suite-wide backend coverage must stay at **80%**. Codecov patch target is **90%**
+([`codecov.yml`](../codecov.yml)). Set repository secret `CODECOV_TOKEN` or the
+upload steps fail (`fail_ci_if_error: true`).
+
+Jest collects coverage but does **not** enforce a Jest `%` threshold (same as
+OUPDMS). Playwright smoke runs on every PR (stronger than OUPDMS’s staging-gated
+E2E). PostGIS/GDAL, Redis integration, and deploy jobs are intentionally absent.
+
+## What to run before you open a pull request
+
+Backend, from `backend` with the virtual environment active:
 
 ```powershell
 ruff check .
 ruff format --check .
 mypy apps config
-python -m pytest
+python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
 ```
 
-From `frontend`:
+Frontend, from `frontend`:
 
 ```powershell
 npm run lint
 npm run type-check
 npm run format:check
-npm test
+npm run test:coverage
+npm run build
 npm run test:e2e
 ```
+
+Or use Make (Git Bash / WSL / macOS / Linux): `make backend-lint`,
+`make backend-test`, `make frontend-lint`, `make frontend-test`,
+`make frontend-build`, `make frontend-e2e`. See `make help`.
 
 ## What the tests are protecting
 
@@ -48,7 +96,22 @@ npm run test:e2e
 - Each Django app has models, migrations, and tests packages.
 - A PostgreSQL URL selects the PostgreSQL engine, and migrations apply.
 - The catalogue index can be created and deleted outside production.
-- An upload stores a private `s3://` reference and a SHA-256 checksum, and an anonymous read is rejected.
+- An upload stores a private `s3://` reference and a SHA-256 checksum, and an
+  anonymous read is rejected.
 - Health returns a failed status when a store is unreachable.
-- A missing IIIF endpoint is `not_configured`. A configured client requests `info.json` and does not publish an image route.
-- Validation and authentication errors use different codes, a correlation identifier, and no stack trace.
+- A missing IIIF endpoint is `not_configured`. A configured client requests
+  `info.json` and does not publish an image route.
+- Validation and authentication errors use different codes, a correlation
+  identifier, and no stack trace.
+- Public shell has no Administration / staff link; layout works at 360px width.
+
+## Cheat sheet
+
+| Goal | Command |
+|---|---|
+| Start infra | `make up` or `docker compose -f docker-compose.dev.yml up -d` |
+| Stop infra | `make down` |
+| Backend coverage tests | `make backend-test` |
+| Frontend coverage | `make frontend-test` |
+| Production Next build | `make frontend-build` |
+| Playwright smoke | `make frontend-e2e` |

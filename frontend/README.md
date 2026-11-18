@@ -9,10 +9,12 @@ npm ci
 npm run dev
 npm run lint
 npm run type-check
-npm test
+npm run format:check
+npm run test:coverage
+npm run build
 npm run test:e2e
 ```
 
-`npm test` runs Jest. `npm run test:e2e` opens Chromium on port 3010.
+`npm run test:coverage` runs Jest with coverage. `npm run build` is the production build CI also runs. `npm run test:e2e` opens Chromium on port 3010.
 
 The dev server listens on http://localhost:3010. It calls the Django API at `NEXT_PUBLIC_API_URL`, which defaults to http://localhost:8010.
