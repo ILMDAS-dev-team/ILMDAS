@@ -1,0 +1,7 @@
+coverage:
+  status:
+    patch:
+      default:
+        # Keep changed code substantially above the suite-wide 80% gate.
+        target: 90%
+        threshold: 0%
