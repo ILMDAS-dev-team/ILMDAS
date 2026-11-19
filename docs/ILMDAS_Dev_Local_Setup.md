@@ -1,10 +1,21 @@
 # ILMDAS local setup
 
-This is the developer setup for a Windows machine. Bash users run the same tools; the only difference is how a virtual environment is activated (`source backend/.venv/bin/activate` instead of `backend\.venv\Scripts\Activate.ps1`).
+This is the developer setup for a Windows machine. The same Docker and npm commands
+work in bash / WSL / macOS.
 
-The business baseline (BRS) and the SRS fix the stack: Next.js, Django, PostgreSQL, Elasticsearch, S3-compatible storage, and IIIF/Cantaloupe. Flutter is not part of this setup. Deployment to the OSTA data center is not part of this setup.
+The business baseline (BRS) and the SRS fix the stack: Next.js, Django, PostgreSQL,
+Elasticsearch, S3-compatible storage, and IIIF/Cantaloupe. Flutter is not part of
+this setup. Deployment to the OSTA data center is not part of this setup.
 
-**Why Django runs on the host:** ILMDAS does not need GDAL/PostGIS system libraries, so the API uses a normal Python venv. Docker only runs PostgreSQL, Elasticsearch, and MinIO. The frontend also runs natively for fast hot reload.
+**How local runtime is split (same idea as OUPDMS):**
+
+1. **Backend stack runs in Docker.** Django, PostgreSQL, Elasticsearch, and MinIO
+   start with `docker compose -f docker-compose.dev.yml up -d --build`. You do not
+   need a host Python install for day-to-day API work.
+2. **Frontend runs natively.** Next.js uses `npm run dev` for fast hot reload.
+
+ILMDAS does **not** run Celery, Redis, Nginx, or PostGIS locally. Those are either
+out of scope or reserved for later deploy work.
 
 Prove a fresh machine end-to-end with
 [ILMDAS_Setup_Verification_Guide.md](ILMDAS_Setup_Verification_Guide.md).
@@ -13,11 +24,12 @@ Team CI workflow is in [ILMDAS_Team_CI-CD.md](ILMDAS_Team_CI-CD.md).
 ## Install the tools
 
 1. Install Git and confirm `git --version`.
-2. Install Python 3.12 or newer and confirm `python --version`.
-3. Install Node.js 20 and confirm `node --version` and `npm --version`.
-4. Install Docker Desktop, start it, and confirm `docker compose version`.
+2. Install Node.js 20 and confirm `node --version` and `npm --version`.
+3. Install Docker Desktop, start it, and confirm `docker compose version`.
 
-You do not need a local PostgreSQL, Elasticsearch, or MinIO install. Docker runs those three.
+You do **not** need a local PostgreSQL, Elasticsearch, MinIO, or Python install for
+the default path. Docker provides the API and infra. (CI and optional host tooling
+may still use Python.)
 
 ## Get the code
 
@@ -28,24 +40,26 @@ cd ilmdas
 
 If you already have the folder, open a terminal in `ilmdas`.
 
-## Start the local services
+## Start the backend stack
 
 ```powershell
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d --build
 docker compose -f docker-compose.dev.yml ps
 ```
 
-Or: `make up` (Git Bash / WSL / macOS / Linux).
+Or: `make up`.
 
-Wait until `postgres` and `elasticsearch` are running. Elasticsearch can take a minute the first time.
+Wait until `backend`, `postgres`, `elasticsearch`, and `minio` are running.
+Elasticsearch can take a minute the first time.
 
-Confirm search:
+Confirm search from the host:
 
 ```powershell
 curl http://localhost:9200
 ```
 
-You should see a JSON body with a cluster name. If the connection is refused, Docker is not running or port 9200 is already taken.
+You should see a JSON body with a cluster name. If the connection is refused, Docker
+is not running or port 9200 is already taken.
 
 ### Create the private bucket
 
@@ -54,46 +68,34 @@ You should see a JSON body with a cluster name. If the connection is refused, Do
 3. Create a bucket named `ilmdas-digital-objects`
 4. Do not turn on anonymous or public access
 
-The API stores a checksum and an `s3://` reference. It does not store the file in PostgreSQL, and it does not return a public URL.
+The API stores a checksum and an `s3://` reference. It does not store the file in
+PostgreSQL, and it does not return a public URL.
 
-## Write the local environment file
+Compose already injects backend environment (Postgres/ES/MinIO service hostnames).
+You do **not** need `backend/.env` for the Docker path. `backend/.env.example`
+remains names-only for documentation and optional host runs.
 
-```powershell
-Copy-Item backend\.env.example backend\.env
-```
-
-`backend/.env.example` lists names and empty values. Fill `backend/.env` with the local values from the root README. That file is gitignored.
-
-If `SECRET_KEY` or `DATABASE_URL` is empty, `manage.py` stops with `Missing required environment variables`. Put the values in `backend/.env`. Do not export a production secret into this file.
-
-Leave `IIIF_ENDPOINT` empty unless you have a Cantaloupe base URL. An empty value is the correct local state. The staff status page then says the endpoint is not configured.
-
-## Python environment
-
-From the repository root:
+## Migrate and check the API
 
 ```powershell
-python -m venv backend\.venv
-backend\.venv\Scripts\Activate.ps1
-pip install -r backend\requirements\development.txt
-python backend\manage.py migrate
-python backend\manage.py runserver 127.0.0.1:8010
+docker compose -f docker-compose.dev.yml exec backend python manage.py migrate
+curl http://localhost:8010/api/v1/health/
 ```
 
-If PowerShell blocks the activate script, run the `python` and `pip` commands by path, as the README does, without activating.
-
-`migrate` creates the object-reference table in PostgreSQL. After it succeeds, open http://localhost:8010/api/v1/health/.
+Or: `make migrate`.
 
 - `"status": "ok"` means the database, Elasticsearch, and the bucket all answered.
-- `"status": "failed"` with HTTP 503 means a check is `not configured` or `unreachable`. Start the matching container, create the bucket, or fix the URL in `.env`. The response does not include a stack trace.
+- `"status": "failed"` with HTTP 503 means a check is `not configured` or
+  `unreachable`. Start the matching container or create the private bucket.
 
 Create a Django admin user only when you need the admin site:
 
 ```powershell
-python backend\manage.py createsuperuser
+docker compose -f docker-compose.dev.yml exec backend python manage.py createsuperuser
 ```
 
-The admin site is http://localhost:8010/admin/. It is not linked from the public website.
+Or: `make superuser`. The admin site is http://localhost:8010/admin/. It is not
+linked from the public website.
 
 ## Web application
 
@@ -103,37 +105,48 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3010/ and http://localhost:3010/staff. Narrow the browser to 360px. The navigation wraps and the page stays inside the viewport. The public header does not contain Administration or a staff link.
+Open http://localhost:3010/ and http://localhost:3010/staff. Narrow the browser to
+360px. The navigation wraps and the page stays inside the viewport. The public header
+does not contain Administration or a staff link.
 
-The staff IIIF page is http://localhost:3010/staff/status. With an empty `IIIF_ENDPOINT` it must not claim that viewing succeeded.
+The staff IIIF page is http://localhost:3010/staff/status. With an empty
+`IIIF_ENDPOINT` it must not claim that viewing succeeded.
 
-`frontend/.env` is optional. Set `NEXT_PUBLIC_API_URL=http://localhost:8010` if the API is not on that address. The client sends `X-Correlation-ID` on every request.
+`frontend/.env` is optional. Set `NEXT_PUBLIC_API_URL=http://localhost:8010` if the
+API is not on that address. The client sends `X-Correlation-ID` on every request.
 
 ## Daily routine
 
-1. `docker compose -f docker-compose.dev.yml up -d` (or `make up`)
-2. Activate the backend venv and run `python backend\manage.py runserver 127.0.0.1:8010`
-3. In another terminal: `cd frontend` → `npm run dev`
-4. Before a PR, run the quality commands below (or `make backend-lint`, `make backend-test`, `make frontend-lint`, `make frontend-test`, `make frontend-build`, `make frontend-e2e`)
+1. `docker compose -f docker-compose.dev.yml up -d --build` (or `make up`)
+2. In another terminal: `cd frontend` → `npm run dev`
+3. Before a PR, run the quality commands below (or the matching `make` targets)
 
 ## Checks before a change
 
-From the repository root, after the virtual environment exists:
+Install git hooks once (needs a local Python with `pre-commit`, or use the backend
+container’s environment if you prefer):
 
 ```powershell
-backend\.venv\Scripts\pre-commit install
+docker compose -f docker-compose.dev.yml exec backend pip show pre-commit
+docker compose -f docker-compose.dev.yml exec backend pre-commit install
 ```
 
-That installs the Ruff, ESLint, Prettier, secret-scan, and file-hygiene hooks. The frontend hooks call ESLint and Prettier through Python. Hooks do not run mypy, pytest, or `tsc`.
+If `pre-commit install` from the container cannot write your host `.git/hooks`,
+install `pre-commit` once on the host and run `pre-commit install` from the repo root.
 
-Backend, from `backend` with the virtual environment active:
+Hooks run Ruff, ESLint, Prettier, secret scanning, and file hygiene. They do **not**
+run mypy, pytest, or `tsc`.
+
+Backend (in Docker):
 
 ```powershell
-ruff check .
-ruff format --check .
-mypy apps config
-python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
+docker compose -f docker-compose.dev.yml exec backend ruff check .
+docker compose -f docker-compose.dev.yml exec backend ruff format --check .
+docker compose -f docker-compose.dev.yml exec backend mypy apps config
+docker compose -f docker-compose.dev.yml exec backend python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
 ```
+
+Or: `make backend-lint` and `make backend-test`.
 
 Frontend, from `frontend`:
 
@@ -146,12 +159,12 @@ npm run build
 npm run test:e2e
 ```
 
-`npm run test:coverage` is Jest with coverage upload-ready output. `npm run build` is the production Next.js build CI also runs. `npm run test:e2e` opens Chromium on http://localhost:3010.
-
-Pytest uses SQLite, so it does not need the Docker services. The health, index, storage, and IIIF tests use fakes for the failure and success paths. `migrate` against `DATABASE_URL` is the check that the same migrations apply to PostgreSQL.
+Pytest uses SQLite inside the container for unit tests, so it does not need live
+Postgres for those cases. `migrate` against the compose database is the check that
+the same migrations apply to PostgreSQL.
 
 CI uploads coverage to Codecov (patch target 90%) when `CODECOV_TOKEN` is set.
-Without the secret, upload is skipped; the local coverage gates still apply.
+Without the secret, upload is skipped; the coverage gates still apply.
 
 ## Stop
 
@@ -159,20 +172,27 @@ Without the secret, upload is skipped; the local coverage gates still apply.
 docker compose -f docker-compose.dev.yml down
 ```
 
-Or: `make down`. Add `-v` only when you intend to delete the local database, index, and bucket data.
+Or: `make down`. Add `-v` only when you intend to delete the local database, index,
+and bucket data.
+
+## Optional: run the API on the host
+
+Only if you prefer a host venv instead of the backend container. Install Python
+3.12+, copy `backend/.env.example` to `backend/.env`, and use **localhost** URLs
+(Postgres on host port **5433**, MinIO on **9010**). Keep compose running for infra
+only, or stop the `backend` service. This path is optional; the default team path
+is Docker.
 
 ## Troubleshooting
 
 | What you see | What to do |
 |---|---|
-| `Missing required environment variables` | Fill `SECRET_KEY` and `DATABASE_URL` in `backend/.env` |
-| Health says the database is unreachable | Confirm the postgres container is up and `DATABASE_URL` matches user `ilmdas`, password `ilmdas`, database `ilmdas` |
-| Health says object storage is not configured | Set `S3_ENDPOINT_URL`, `S3_BUCKET_NAME`, and the MinIO user and password |
-| Health says object storage is unreachable | Create the private bucket, or confirm MinIO is on port 9010 |
-| Port 5433, 8010, 9010, or 9200 is in use | Stop the other process or change the host port in `docker-compose.dev.yml` and the matching URL in `.env` |
+| Backend container restarting | `docker compose -f docker-compose.dev.yml logs backend` |
+| Health says the database is unreachable | Wait for postgres healthy; confirm migrate ran |
+| Health says object storage is unreachable | Create the private bucket `ilmdas-digital-objects` on port 9011 |
+| Port 5433, 8010, 9010, or 9200 is in use | Stop the other process or change the host port in compose |
 | Coverage below 80% | Read the missing-lines report; add tests before changing omit rules |
-| Codecov upload skipped in CI | Optional until `CODECOV_TOKEN` is set; coverage gates still run locally in pytest/Jest |
-| Codecov upload fails with token set | Fix the Codecov config or token; upload uses `fail_ci_if_error: true` |
+| Codecov upload skipped in CI | Optional until `CODECOV_TOKEN` is set |
 | `next build` fails | Run `npm run build` locally and fix the reported errors |
 | `npm ci` cannot find the lockfile | Run `npm install` once from `frontend` |
 | Public page shows an administration link | That is a defect. The public layout must not link to `/staff` or Administration |

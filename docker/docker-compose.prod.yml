@@ -1,15 +1,26 @@
-# Production-shaped service list for the OSTA data center.
+# Production-shaped stack for the OSTA data center.
 # Host names, TLS, and secrets belong in the system design, not in this file.
+# Nginx is not wired yet. Celery is not part of ILMDAS.
 # Do not put real credentials here.
 
 services:
   postgres:
     image: postgres:16
+
   elasticsearch:
     image: elasticsearch:8.15.3
+
   minio:
     image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+
   backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/backend/Dockerfile
     image: ilmdas-backend:local
+
   frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/frontend/Dockerfile
     image: ilmdas-frontend:local

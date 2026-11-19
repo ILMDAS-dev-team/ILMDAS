@@ -40,8 +40,9 @@ those values in code or fixtures.
 
 - Branch from an up-to-date `develop` as `feature/<short-description>`.
 - Prefer conventional commit subjects (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`).
-- Install hooks once: `backend\.venv\Scripts\pre-commit install` (or the Unix
-  equivalent after the venv exists). Hooks run Ruff, ESLint, Prettier, and
+- Local default: Django in Docker, Next.js native (see
+  `docs/ILMDAS_Dev_Local_Setup.md`).
+- Install hooks once: `pre-commit install`. Hooks run Ruff, ESLint, Prettier, and
   secret scanning. They do not run mypy, pytest, or `tsc`.
 
 ## PR checklist

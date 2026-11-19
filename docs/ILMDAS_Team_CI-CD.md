@@ -32,12 +32,19 @@ Contribution rules are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 - Prefer conventional commits: `feat:`, `fix:`, `docs:`, `ci:`, `chore:`
 - Release PRs go from `develop` into `main`
 
+## Local runtime reminder
+
+Day-to-day local setup matches OUPDMS’s split: **Django in Docker**, **Next.js
+native**. See [ILMDAS_Dev_Local_Setup.md](ILMDAS_Dev_Local_Setup.md). Celery,
+Nginx, and PostGIS are not part of local CI reproduction.
+
 ## One-time hooks
 
-After the backend virtual environment exists, from the repository root:
+Install pre-commit once (host Python with `pre-commit`, or follow the Docker note
+in the local setup guide):
 
 ```powershell
-backend\.venv\Scripts\pre-commit install
+pre-commit install
 ```
 
 Hooks run Ruff (backend), ESLint and Prettier (frontend), detect-secrets, and
@@ -46,11 +53,12 @@ file hygiene. They do **not** run mypy, pytest, or `tsc` (same as OUPDMS).
 ## CI jobs
 
 A failing command fails the job. Jobs do not set `continue-on-error` on test steps.
+`DC` means `docker compose -f docker-compose.dev.yml`.
 
 | # | Job | What it runs | Reproduce locally |
 |---|---|---|---|
-| 1 | Backend lint | Ruff, `ruff format --check`, mypy | `cd backend` → `ruff check .` → `ruff format --check .` → `mypy apps config` |
-| 2 | Backend tests | `pytest apps/ --cov=apps --cov-report=xml --cov-fail-under=80` + Codecov | `cd backend` → `python -m pytest apps/ --cov=apps --cov-fail-under=80 -v` |
+| 1 | Backend lint | Ruff, `ruff format --check`, mypy | `DC exec backend ruff check .` → `ruff format --check .` → `mypy apps config` |
+| 2 | Backend tests | `pytest apps/ --cov=apps --cov-report=xml --cov-fail-under=80` + Codecov | `DC exec backend python -m pytest apps/ --cov=apps --cov-fail-under=80 -v` |
 | 3 | Frontend lint | ESLint, `tsc --noEmit`, Prettier | `cd frontend` → `npm run lint` → `npm run type-check` → `npm run format:check` |
 | 4 | Frontend tests | `npm run test:coverage`, `npm run build`, Codecov | same two commands from `frontend` |
 | 5 | Frontend smoke | Playwright Chromium on public + staff | `cd frontend` → `npx playwright install chromium` → `npm run test:e2e` |
@@ -66,13 +74,13 @@ E2E). PostGIS/GDAL, Redis integration, and deploy jobs are intentionally absent.
 
 ## What to run before you open a pull request
 
-Backend, from `backend` with the virtual environment active:
+Backend (Docker):
 
 ```powershell
-ruff check .
-ruff format --check .
-mypy apps config
-python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
+docker compose -f docker-compose.dev.yml exec backend ruff check .
+docker compose -f docker-compose.dev.yml exec backend ruff format --check .
+docker compose -f docker-compose.dev.yml exec backend mypy apps config
+docker compose -f docker-compose.dev.yml exec backend python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
 ```
 
 Frontend, from `frontend`:
@@ -86,9 +94,9 @@ npm run build
 npm run test:e2e
 ```
 
-Or use Make (Git Bash / WSL / macOS / Linux): `make backend-lint`,
-`make backend-test`, `make frontend-lint`, `make frontend-test`,
-`make frontend-build`, `make frontend-e2e`. See `make help`.
+Or use Make (Git Bash / WSL / macOS / Linux): `make up`, `make migrate`,
+`make backend-lint`, `make backend-test`, `make frontend-lint`,
+`make frontend-test`, `make frontend-build`, `make frontend-e2e`. See `make help`.
 
 ## What the tests are protecting
 
@@ -110,8 +118,9 @@ Or use Make (Git Bash / WSL / macOS / Linux): `make backend-lint`,
 
 | Goal | Command |
 |---|---|
-| Start infra | `make up` or `docker compose -f docker-compose.dev.yml up -d` |
-| Stop infra | `make down` |
+| Start backend + infra | `make up` or `docker compose -f docker-compose.dev.yml up -d --build` |
+| Migrate | `make migrate` |
+| Stop stack | `make down` |
 | Backend coverage tests | `make backend-test` |
 | Frontend coverage | `make frontend-test` |
 | Production Next build | `make frontend-build` |

@@ -28,10 +28,15 @@ ilmdas/
 │   │                         # publishing, payments, audit, and core
 │   ├── config/settings/      # base, development, test, production
 │   ├── requirements/         # base, development, production
-│   ├── .env.example          # variable names only
+│   ├── .env.example          # variable names only (optional host path)
 │   └── manage.py
 ├── frontend/                 # Next.js app (public site and staff shell)
 ├── docker/
+│   ├── backend/
+│   │   ├── Dockerfile.dev    # local API image
+│   │   └── Dockerfile        # production gunicorn image
+│   ├── frontend/
+│   │   └── Dockerfile        # production Next standalone image
 │   └── docker-compose.prod.yml
 ├── docs/
 │   ├── ILMDAS_Dev_Local_Setup.md
@@ -41,7 +46,7 @@ ilmdas/
 ├── .github/workflows/ci-cd.yml
 ├── codecov.yml
 ├── CONTRIBUTING.md
-├── docker-compose.dev.yml
+├── docker-compose.dev.yml    # local: backend in Docker, frontend native
 ├── Makefile
 └── README.md
 ```
@@ -51,73 +56,43 @@ ilmdas/
 Install these first:
 
 - Git
-- Python 3.12 or newer
 - Node.js 20
 - Docker Desktop, running
 
-The steps below are for Windows PowerShell from the repository root. The same commands work in bash if you use `python3` and `source backend/.venv/bin/activate`. More detail and the failure checks are in [docs/ILMDAS_Dev_Local_Setup.md](docs/ILMDAS_Dev_Local_Setup.md).
+Local runtime matches OUPDMS’s split: **Django in Docker**, **Next.js native**.
+Celery, Nginx, and PostGIS are not part of this local stack. More detail is in
+[docs/ILMDAS_Dev_Local_Setup.md](docs/ILMDAS_Dev_Local_Setup.md).
 
-### 1. Start PostgreSQL, Elasticsearch, and MinIO
+### 1. Start the backend stack
 
 ```powershell
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 | Service | URL | Local sign-in |
 |---|---|---|
+| Django API | http://localhost:8010 | — |
 | PostgreSQL | `localhost:5433`, database `ilmdas` | user `ilmdas`, password `ilmdas` |
 | Elasticsearch | http://localhost:9200 | security is off for this local node |
 | MinIO API | http://localhost:9010 | user `ilmdas`, password `ilmdas-local-only` |
 | MinIO console | http://localhost:9011 | same user and password |
 
-These passwords exist only for the local Docker stack. They are not production secrets and they are not in `backend/.env.example`.
+These passwords exist only for the local Docker stack. They are not production secrets.
 
-In the MinIO console at http://localhost:9011, create a bucket named `ilmdas-digital-objects`. Leave it private. Do not add an anonymous read policy. These host ports stay clear of the other local project.
+In the MinIO console at http://localhost:9011, create a bucket named `ilmdas-digital-objects`. Leave it private. Do not add an anonymous read policy.
 
-### 2. Configure the API
+Compose injects backend environment with Docker service hostnames. You do not need `backend/.env` for this path.
 
-```powershell
-Copy-Item backend\.env.example backend\.env
-```
-
-Open `backend/.env` and set:
-
-```
-DJANGO_SETTINGS_MODULE=config.settings.development
-SECRET_KEY=local-development-only-change-me
-DATABASE_URL=postgres://ilmdas:ilmdas@localhost:5433/ilmdas
-ILMDAS_ENVIRONMENT=development
-ALLOWED_HOSTS=localhost,127.0.0.1
-CORS_ALLOWED_ORIGINS=http://localhost:3010
-ELASTICSEARCH_URL=http://localhost:9200
-ELASTICSEARCH_INDEX=ilmdas-catalogue
-S3_ENDPOINT_URL=http://localhost:9010
-S3_ACCESS_KEY_ID=ilmdas
-S3_SECRET_ACCESS_KEY=ilmdas-local-only
-S3_BUCKET_NAME=ilmdas-digital-objects
-S3_REGION=us-east-1
-IIIF_ENDPOINT=
-IIIF_FIXTURE_IDENTIFIER=fixture-image
-```
-
-Leave `IIIF_ENDPOINT` empty until a Cantaloupe server exists. Staff then see “IIIF endpoint is not configured”. Filling it in must not be treated as a successful viewing session by itself.
-
-Django refuses to start when `SECRET_KEY` or `DATABASE_URL` is missing.
-
-### 3. Install the API and apply migrations
+### 2. Migrate and check health
 
 ```powershell
-python -m venv backend\.venv
-backend\.venv\Scripts\pip install -r backend\requirements\development.txt
-backend\.venv\Scripts\python backend\manage.py migrate
-backend\.venv\Scripts\python backend\manage.py runserver 127.0.0.1:8010
+docker compose -f docker-compose.dev.yml exec backend python manage.py migrate
+curl http://localhost:8010/api/v1/health/
 ```
 
-`runserver` uses development settings. The API is at http://localhost:8010/.
+A reachable database, search node, and bucket return `"status": "ok"`. A stopped service returns HTTP 503 and `"status": "failed"`.
 
-Check http://localhost:8010/api/v1/health/. A reachable database, search node, and bucket return `"status": "ok"`. A stopped service returns HTTP 503 and `"status": "failed"`.
-
-### 4. Install and run the web app
+### 3. Install and run the web app
 
 In a second terminal:
 
@@ -133,18 +108,14 @@ npm run dev
 
 The public shell has no administration link and no link into `/staff`. The browser talks only to the Django API. It does not open PostgreSQL.
 
-`npm ci` needs `package-lock.json`. If you are on a fresh clone from before the lockfile was committed, run `npm install` once.
-
-### 5. Run the checks
+### 4. Run the checks
 
 ```powershell
-backend\.venv\Scripts\pre-commit install
-cd backend
-.\.venv\Scripts\ruff check .
-.\.venv\Scripts\ruff format --check .
-.\.venv\Scripts\mypy apps config
-.\.venv\Scripts\python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
-cd ..\frontend
+docker compose -f docker-compose.dev.yml exec backend ruff check .
+docker compose -f docker-compose.dev.yml exec backend ruff format --check .
+docker compose -f docker-compose.dev.yml exec backend mypy apps config
+docker compose -f docker-compose.dev.yml exec backend python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
+cd frontend
 npm run lint
 npm run type-check
 npm run format:check

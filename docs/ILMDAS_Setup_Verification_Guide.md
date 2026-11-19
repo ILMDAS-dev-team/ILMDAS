@@ -5,12 +5,10 @@ before the team starts. Work the phases in order. Each step lists the command,
 the expected result, and a pass / fail signal.
 
 Conventions: run commands from the `ilmdas/` repository root unless noted.
-On Windows PowerShell, activate the venv with `backend\.venv\Scripts\Activate.ps1`
-or call `backend\.venv\Scripts\python` / `pip` by path. Bash/WSL users use
-`source backend/.venv/bin/activate`.
+`DC` below means `docker compose -f docker-compose.dev.yml`.
 
-Deployment to the OSTA data center, production image publish, and PostGIS are
-**not** part of this guide. See [ILMDAS_Tech_Lead_Env_Setup.md](ILMDAS_Tech_Lead_Env_Setup.md)
+Deployment to the OSTA data center, PostGIS, Celery, and Nginx are **not** part
+of this guide. See [ILMDAS_Tech_Lead_Env_Setup.md](ILMDAS_Tech_Lead_Env_Setup.md)
 for what will be needed later.
 
 ---
@@ -21,14 +19,13 @@ for what will be needed later.
 
 ```powershell
 git --version
-python --version
 node --version
 npm --version
 docker compose version
 ```
 
-Pass: Git, Python 3.12+, Node 20+, and Compose v2 all print versions.
-Fail: install the missing tool.
+Pass: Git, Node 20+, and Compose v2 all print versions.
+Fail: install the missing tool. Host Python is optional for the Docker path.
 
 **0.2 Branches and remote**
 
@@ -44,17 +41,17 @@ missing branch before inviting the team.
 
 ## Phase A — Local development stack
 
-Django runs on the host in a virtualenv. Docker only runs PostgreSQL,
-Elasticsearch, and MinIO (ports chosen not to clash with other local projects).
+Django runs in Docker. Next.js runs natively. Ports stay clear of other local projects.
 
-**A.1 Start infrastructure**
+**A.1 Build and start the stack**
 
 ```powershell
-docker compose -f docker-compose.dev.yml up -d
-docker compose -f docker-compose.dev.yml ps
+DC up -d --build
+DC ps
 ```
 
-Pass: `postgres`, `elasticsearch`, and `minio` are Up. Fail: `docker compose logs <service>`.
+Pass: `backend`, `postgres`, `elasticsearch`, and `minio` are Up. Fail:
+`DC logs <service>`.
 
 **A.2 Elasticsearch**
 
@@ -73,38 +70,17 @@ Pass: JSON body with a cluster name. Fail: Docker not running or port 9200 taken
 
 Pass: bucket exists and is private. Fail: create the bucket before health will pass.
 
-**A.4 Environment file**
+**A.4 Migrate and health**
 
 ```powershell
-Copy-Item backend\.env.example backend\.env
-```
-
-Fill `backend/.env` with the local values from the root [README](../README.md).
-Leave `IIIF_ENDPOINT` empty.
-
-Pass: `SECRET_KEY` and `DATABASE_URL` are non-empty. Fail: `manage.py` stops with
-`Missing required environment variables`.
-
-**A.5 Python environment, migrate, API**
-
-```powershell
-python -m venv backend\.venv
-backend\.venv\Scripts\pip install -r backend\requirements\development.txt
-backend\.venv\Scripts\python backend\manage.py migrate
-backend\.venv\Scripts\python backend\manage.py runserver 127.0.0.1:8010
-```
-
-Then:
-
-```powershell
+DC exec backend python manage.py migrate
 curl http://localhost:8010/api/v1/health/
 ```
 
-Pass: HTTP 200 and `"status": "ok"` (database, Elasticsearch, and bucket reachable).
-Fail: HTTP 503 / `"status": "failed"` — start the matching container, create the
-bucket, or fix URLs in `.env`.
+Pass: HTTP 200 and `"status": "ok"`. Fail: HTTP 503 / `"status": "failed"` —
+fix the matching container or create the bucket.
 
-**A.6 Frontend**
+**A.5 Frontend**
 
 ```powershell
 cd frontend
@@ -119,7 +95,7 @@ the endpoint is not configured, not that viewing succeeded.
 Pass: public and staff shells render; public header has no Administration or
 `/staff` link. Fail: see [ILMDAS_Dev_Local_Setup.md](ILMDAS_Dev_Local_Setup.md).
 
-> Phase A passes when infra is up, health is `ok`, and both web shells render.
+> Phase A passes when the stack is up, health is `ok`, and both web shells render.
 
 ---
 
@@ -129,9 +105,10 @@ These match [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml).
 
 **B.1 Pre-commit**
 
+Install hooks once (host or documented Docker path), then:
+
 ```powershell
-backend\.venv\Scripts\pre-commit install
-backend\.venv\Scripts\pre-commit run --all-files
+pre-commit run --all-files
 ```
 
 Pass: Ruff, ESLint, Prettier, detect-secrets, and hygiene hooks pass.
@@ -140,11 +117,10 @@ Fail: fix the reported file; hooks do not run mypy, pytest, or `tsc`.
 **B.2 Backend lint + coverage gate**
 
 ```powershell
-cd backend
-.\.venv\Scripts\ruff check .
-.\.venv\Scripts\ruff format --check .
-.\.venv\Scripts\mypy apps config
-.\.venv\Scripts\python -m pytest apps/ --cov=apps --cov-report=term-missing --cov-fail-under=80 -v
+DC exec backend ruff check .
+DC exec backend ruff format --check .
+DC exec backend mypy apps config
+DC exec backend python -m pytest apps/ --cov=apps --cov-report=term-missing --cov-fail-under=80 -v
 ```
 
 Pass: lint clean; coverage ≥ 80%. Fail: add tests or fix coverage omit only for
@@ -193,9 +169,9 @@ are skipped. Add the secret when you want uploads; then upload failures fail CI
 Expect these jobs green:
 
 1. Backend lint
-2. Backend tests (pytest + `--cov-fail-under=80` + Codecov)
+2. Backend tests (pytest + `--cov-fail-under=80` + optional Codecov)
 3. Frontend lint
-4. Frontend tests (`test:coverage`, `next build`, Codecov)
+4. Frontend tests (`test:coverage`, `next build`, optional Codecov)
 5. Frontend smoke (Playwright Chromium)
 
 Pass: all five green. Fail: reproduce with the matching local command from Phase B
@@ -210,9 +186,10 @@ or [ILMDAS_Team_CI-CD.md](ILMDAS_Team_CI-CD.md).
 
 | What you see | What to do |
 |---|---|
+| Backend container restarting | `DC logs backend` |
 | Coverage below 80% | Read the missing lines report; add tests for `apps.core` before omitting stubs |
 | Codecov upload skipped | Expected until `CODECOV_TOKEN` is set |
 | Codecov upload fails with token set | Check token and `codecov.yml` |
 | `next build` fails | Run `npm run build` locally; fix type or import errors |
-| Health failed / 503 | Confirm Postgres 5433, ES 9200, MinIO 9010, and private bucket |
-| Port clash | Adjust host ports in `docker-compose.dev.yml` and matching `.env` URLs |
+| Health failed / 503 | Confirm Postgres, ES, MinIO, and private bucket |
+| Port clash | Adjust host ports in `docker-compose.dev.yml` |

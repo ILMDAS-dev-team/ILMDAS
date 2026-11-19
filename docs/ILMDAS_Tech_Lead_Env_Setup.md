@@ -11,13 +11,16 @@ root [README](../README.md).
 
 ## What already exists in the repo
 
-- Local infra: [`docker-compose.dev.yml`](../docker-compose.dev.yml) (Postgres,
-  Elasticsearch, MinIO).
-- Production-shaped service list: [`docker/docker-compose.prod.yml`](../docker/docker-compose.prod.yml).
-  It names images (`ilmdas-backend:local`, `ilmdas-frontend:local`) but does **not**
-  ship application Dockerfiles or real credentials.
+- Local stack: [`docker-compose.dev.yml`](../docker-compose.dev.yml) — Django
+  backend image plus Postgres, Elasticsearch, and MinIO. Frontend stays native.
+- Images:
+  - [`docker/backend/Dockerfile.dev`](../docker/backend/Dockerfile.dev) (local)
+  - [`docker/backend/Dockerfile`](../docker/backend/Dockerfile) (production gunicorn)
+  - [`docker/frontend/Dockerfile`](../docker/frontend/Dockerfile) (production Next standalone)
+- Production-shaped compose: [`docker/docker-compose.prod.yml`](../docker/docker-compose.prod.yml).
+  Nginx is **not** wired yet. Celery is **not** part of ILMDAS.
 - CI today: lint, pytest with 80% coverage, Jest coverage, `next build`, Playwright
-  smoke, Codecov upload. No GHCR push and no SSH deploy.
+  smoke, optional Codecov upload. No GHCR push and no SSH deploy.
 
 ## Secret categories (when deploy is approved)
 
@@ -35,7 +38,7 @@ approved, expect secrets in these categories:
 
 ## What to add later (not now)
 
-1. Application Dockerfiles and a real `docker-compose.prod.yml` env contract.
+1. Nginx (or equivalent) TLS termination and routing in front of backend/frontend.
 2. GitHub Environments and deploy secrets (hosts, SSH keys) when servers exist.
 3. Optional staging auto-deploy gated like OUPDMS (`DEPLOY_STAGING`) — only after
    those servers and images exist.

@@ -1,4 +1,51 @@
+# ILMDAS local development stack.
+# Django runs IN Docker (bind-mounted source). Next.js runs NATIVELY (`npm run dev`).
+# No Celery, Redis, Nginx, or PostGIS in this stack.
+#
+#   Start:    docker compose -f docker-compose.dev.yml up -d --build
+#   Migrate:  docker compose -f docker-compose.dev.yml exec backend python manage.py migrate
+#   Logs:     docker compose -f docker-compose.dev.yml logs -f backend
+#   Stop:     docker compose -f docker-compose.dev.yml down
+#
+# Backend env uses Docker service hostnames (postgres / elasticsearch / minio).
+
+x-backend-env: &backend-env
+  DJANGO_SETTINGS_MODULE: config.settings.development
+  ILMDAS_SKIP_ENV_FILE: "1"
+  SECRET_KEY: local-development-only-change-me # pragma: allowlist secret
+  DATABASE_URL: postgres://ilmdas:ilmdas@postgres:5432/ilmdas # pragma: allowlist secret
+  ILMDAS_ENVIRONMENT: development
+  ALLOWED_HOSTS: localhost,127.0.0.1,backend
+  CORS_ALLOWED_ORIGINS: http://localhost:3010
+  ELASTICSEARCH_URL: http://elasticsearch:9200
+  ELASTICSEARCH_INDEX: ilmdas-catalogue
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_ACCESS_KEY_ID: ilmdas # pragma: allowlist secret
+  S3_SECRET_ACCESS_KEY: ilmdas-local-only # pragma: allowlist secret
+  S3_BUCKET_NAME: ilmdas-digital-objects
+  S3_REGION: us-east-1
+  IIIF_ENDPOINT: ""
+  IIIF_FIXTURE_IDENTIFIER: fixture-image
+
 services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile.dev
+    restart: unless-stopped
+    environment: *backend-env
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8010:8010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      minio:
+        condition: service_started
+
   postgres:
     image: postgres:16
     environment:
@@ -9,6 +56,11 @@ services:
       - "5433:5432"
     volumes:
       - ilmdas_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ilmdas -d ilmdas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   elasticsearch:
     image: elasticsearch:8.15.3

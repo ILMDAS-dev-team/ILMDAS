@@ -1,0 +1,26 @@
+# Development backend image for docker-compose.dev.yml.
+# Bind-mounts ./backend at runtime for hot reload. Not for production.
+#
+# ILMDAS does not need GDAL/PostGIS. Celery and Nginx are not part of local dev.
+FROM python:3.12-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DJANGO_SETTINGS_MODULE=config.settings.development \
+    ILMDAS_SKIP_ENV_FILE=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements/ requirements/
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements/development.txt
+
+# Source is bind-mounted at runtime (./backend:/app).
+EXPOSE 8010
+
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8010"]

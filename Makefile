@@ -2,31 +2,46 @@
 # Make is common on macOS/Linux and Git Bash/WSL on Windows.
 # PowerShell users can run the underlying commands from docs/ILMDAS_Dev_Local_Setup.md.
 #
-# backend-install uses a Unix venv path. On Windows PowerShell use:
-#   python -m venv backend\.venv
-#   backend\.venv\Scripts\pip install -r backend\requirements\development.txt
+# Local model matches OUPDMS: Django in Docker, Next.js native.
+# DC = docker compose -f docker-compose.dev.yml
+
+DC = docker compose -f docker-compose.dev.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down backend-install backend-lint backend-test frontend-install \
-        frontend-lint frontend-test frontend-build frontend-e2e migrate
+.PHONY: help up down logs ps migrate superuser backend-shell backend-lint backend-test \
+        frontend-install frontend-lint frontend-test frontend-build frontend-e2e
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-18s %s\n", $$1, $$2}'
 
-up: ## Start Postgres, Elasticsearch, and MinIO
-	docker compose -f docker-compose.dev.yml up -d
+up: ## Build and start backend + Postgres + Elasticsearch + MinIO
+	$(DC) up -d --build
 
 down: ## Stop local Docker services
-	docker compose -f docker-compose.dev.yml down
+	$(DC) down
 
-backend-install: ## Create backend/.venv and install development requirements (Unix/WSL)
-	python -m venv backend/.venv && backend/.venv/bin/pip install -r backend/requirements/development.txt
+logs: ## Tail backend logs
+	$(DC) logs -f backend
 
-backend-lint: ## Ruff + format check + mypy
-	cd backend && ruff check . && ruff format --check . && mypy apps config
+ps: ## Show running compose services
+	$(DC) ps
 
-backend-test: ## Pytest with coverage gate (>=80%)
-	cd backend && python -m pytest apps/ --cov=apps --cov-report=term-missing --cov-fail-under=80 -v
+migrate: ## Apply Django migrations in the backend container
+	$(DC) exec backend python manage.py migrate
+
+superuser: ## Create a Django admin user in the backend container
+	$(DC) exec backend python manage.py createsuperuser
+
+backend-shell: ## Open a shell in the backend container
+	$(DC) exec backend bash
+
+backend-lint: ## Ruff + format check + mypy in the backend container
+	$(DC) exec backend ruff check .
+	$(DC) exec backend ruff format --check .
+	$(DC) exec backend mypy apps config
+
+backend-test: ## Pytest with coverage gate (>=80%) in the backend container
+	$(DC) exec backend python -m pytest apps/ --cov=apps --cov-report=term-missing --cov-fail-under=80 -v
 
 frontend-install: ## Install frontend dependencies
 	cd frontend && npm ci
@@ -42,6 +57,3 @@ frontend-build: ## Next.js production build
 
 frontend-e2e: ## Playwright Chromium smoke
 	cd frontend && npm run test:e2e
-
-migrate: ## Apply Django migrations (requires backend/.env and Postgres)
-	cd backend && python manage.py migrate
