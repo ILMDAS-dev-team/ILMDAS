@@ -50,8 +50,8 @@ DC up -d --build
 DC ps
 ```
 
-Pass: `backend`, `postgres`, `elasticsearch`, and `minio` are Up. Fail:
-`DC logs <service>`.
+Pass: `backend`, `postgres`, `elasticsearch`, and `minio` are Up;
+`minio-init` has exited successfully. Fail: `DC logs <service>`.
 
 **A.2 Elasticsearch**
 
@@ -61,14 +61,13 @@ curl http://localhost:9200
 
 Pass: JSON body with a cluster name. Fail: Docker not running or port 9200 taken.
 
-**A.3 Private MinIO bucket**
+**A.3 Private object-storage bucket**
 
-1. Open http://localhost:9011
-2. Sign in with user `ilmdas` and password `ilmdas-local-only`
-3. Create bucket `ilmdas-digital-objects`
-4. Leave anonymous/public access off
+Compose creates private bucket `ilmdas-files` via `minio-init`.
+Optional: open http://localhost:9011 (user `ilmdas` / password `ilmdas-local-only`)
+and confirm the bucket exists with anonymous access off.
 
-Pass: bucket exists and is private. Fail: create the bucket before health will pass.
+Pass: init exited 0 and the bucket exists. Fail: `DC logs minio-init`.
 
 **A.4 Migrate and health**
 
@@ -78,7 +77,7 @@ curl http://localhost:8010/api/v1/health/
 ```
 
 Pass: HTTP 200 and `"status": "ok"`. Fail: HTTP 503 / `"status": "failed"` —
-fix the matching container or create the bucket.
+fix the matching container or re-run compose so `minio-init` can create the bucket.
 
 **A.5 Frontend**
 
@@ -139,7 +138,15 @@ npm run build
 
 Pass: all five succeed. Fail: fix lint/format or failing tests before merging.
 
-**B.4 Playwright smoke**
+**B.4 Local smoke (optional; not in CI)**
+
+Backend live health (compose up on port 8010):
+
+```powershell
+make backend-smoke
+```
+
+Frontend Playwright (install Chromium once if needed):
 
 ```powershell
 cd frontend
@@ -147,10 +154,12 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Pass: Chromium smoke opens public and staff pages. Fail: install Chromium or fix
-the failing spec.
+Or: `make frontend-e2e` / full frontend suite `make frontend-check`.
 
-> Phase B passes when every command above is green — that is a green CI run, locally.
+Pass: health returns `"status": "ok"`; Chromium opens public and staff pages.
+Fail: start compose / create bucket, or fix the failing Playwright spec.
+
+> Phase B CI parity is B.1–B.3. B.4 is local-only smoke.
 
 ---
 
@@ -166,19 +175,21 @@ are skipped. Add the secret when you want uploads; then upload failures fail CI
 
 **D.2 Open a trivial pull request into `develop`**
 
-Expect these jobs green:
+Expect these jobs:
 
-1. Backend lint
-2. Backend tests (pytest + `--cov-fail-under=80` + optional Codecov)
-3. Frontend lint
-4. Frontend tests (`test:coverage`, `next build`, optional Codecov)
-5. Frontend smoke (Playwright Chromium)
+1. Backend lint — green
+2. Backend tests (pytest + `--cov-fail-under=80` + optional Codecov) — green
+3. Frontend lint — green
+4. Frontend tests (`test:coverage`, `next build`, optional Codecov) — green
+5. Backend smoke — **Skipped** (`if: false`)
+6. Frontend smoke — **Skipped** (`if: false`)
 
-Pass: all five green. Fail: reproduce with the matching local command from Phase B
-or [ILMDAS_Team_CI-CD.md](ILMDAS_Team_CI-CD.md).
+Pass: four active jobs green; both smoke jobs skipped. Fail: reproduce with the
+matching local command from Phase B or [ILMDAS_Team_CI-CD.md](ILMDAS_Team_CI-CD.md).
+Local smoke: `make backend-smoke`, `make frontend-e2e`.
 
-> Phase D passes when a PR shows the five jobs green. Image build and staging /
-> production deploy phases are deferred until those land in CI.
+> Phase D passes when a PR shows the four active jobs green and smoke jobs
+> skipped. Image build and staging / production deploy phases are deferred.
 
 ---
 
@@ -191,5 +202,5 @@ or [ILMDAS_Team_CI-CD.md](ILMDAS_Team_CI-CD.md).
 | Codecov upload skipped | Expected until `CODECOV_TOKEN` is set |
 | Codecov upload fails with token set | Check token and `codecov.yml` |
 | `next build` fails | Run `npm run build` locally; fix type or import errors |
-| Health failed / 503 | Confirm Postgres, ES, MinIO, and private bucket |
+| Health failed / 503 | Confirm Postgres, ES, MinIO, and that `minio-init` created bucket `ilmdas-files` |
 | Port clash | Adjust host ports in `docker-compose.dev.yml` |

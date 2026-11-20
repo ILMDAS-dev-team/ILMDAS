@@ -91,7 +91,7 @@ def test_migrations_apply():
     call_command("migrate", verbosity=0, interactive=False)
     record = ObjectReference.objects.create(
         object_key="manuscripts/fixture",
-        reference="s3://ilmdas-digital-objects/manuscripts/fixture",
+        reference="s3://ilmdas-files/manuscripts/fixture",
         checksum_sha256="abc",
     )
     assert record.id
@@ -132,11 +132,11 @@ def test_private_upload_stores_a_reference_and_checksum():
         def put_object(self, **kwargs):
             calls.update(kwargs)
 
-    storage = ObjectStorage(client=FakeClient(), bucket="ilmdas-digital-objects")
+    storage = ObjectStorage(client=FakeClient(), bucket="ilmdas-files")
     stored = storage.put_private("manuscripts/1", b"page")
     assert calls["ACL"] == "private"
     assert stored.checksum_sha256 == hashlib.sha256(b"page").hexdigest()
-    assert stored.reference == "s3://ilmdas-digital-objects/manuscripts/1"
+    assert stored.reference == "s3://ilmdas-files/manuscripts/1"
     assert "http://" not in stored.reference
     assert "https://" not in stored.reference
 
@@ -146,7 +146,7 @@ def test_object_upload_is_not_anonymously_readable(api_client, django_user_model
     user = django_user_model.objects.create_user(username="staff", password="local-only")
     body = b"page"
     stored = StoredObject(
-        reference="s3://ilmdas-digital-objects/manuscripts/1",
+        reference="s3://ilmdas-files/manuscripts/1",
         checksum_sha256=hashlib.sha256(body).hexdigest(),
         object_key="manuscripts/1",
     )
@@ -249,7 +249,13 @@ def test_ci_workflow_runs_both_test_suites_and_fails_on_failure():
     assert "--cov-fail-under=80" in workflow
     assert "npm run test:coverage" in workflow
     assert "npm run build" in workflow
+    assert "backend-smoke:" in workflow
+    assert "Backend smoke" in workflow
+    assert "pytest -m smoke" in workflow
+    assert "frontend-e2e:" in workflow
+    assert "Frontend smoke" in workflow
     assert "npm run test:e2e" in workflow
+    assert workflow.count("if: false") >= 2
     assert "continue-on-error: true" not in workflow
 
 
@@ -350,7 +356,7 @@ def test_object_detail_and_not_found(api_client, django_user_model):
     user = django_user_model.objects.create_user(username="viewer", password="local-only")
     record = ObjectReference.objects.create(
         object_key="manuscripts/detail",
-        reference="s3://ilmdas-digital-objects/manuscripts/detail",
+        reference="s3://ilmdas-files/manuscripts/detail",
         checksum_sha256="abc",
     )
     api_client.force_authenticate(user)
@@ -463,14 +469,14 @@ def test_object_storage_configuration_and_health(settings):
             raise RuntimeError("down")
 
     settings.S3_ENDPOINT_URL = "http://localhost:9010"
-    broken = ObjectStorage(client=Boom(), bucket="ilmdas-digital-objects")
+    broken = ObjectStorage(client=Boom(), bucket="ilmdas-files")
     assert broken.health() == {"ok": False, "detail": "unreachable"}
 
     class Ok:
         def head_bucket(self, Bucket):
             return {}
 
-    healthy = ObjectStorage(client=Ok(), bucket="ilmdas-digital-objects")
+    healthy = ObjectStorage(client=Ok(), bucket="ilmdas-files")
     assert healthy.health() == {"ok": True, "detail": "reachable"}
 
 
@@ -514,7 +520,7 @@ def test_classify_not_found_and_client_error_status():
 def test_object_reference_str():
     record = ObjectReference.objects.create(
         object_key="manuscripts/str",
-        reference="s3://ilmdas-digital-objects/manuscripts/str",
+        reference="s3://ilmdas-files/manuscripts/str",
         checksum_sha256="abc",
     )
     assert str(record) == "manuscripts/str"

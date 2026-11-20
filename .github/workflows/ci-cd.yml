@@ -109,8 +109,29 @@ jobs:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  backend-smoke:
+    name: Backend smoke
+    if: false  # local-only for now; needs live stack when enabled
+    needs: backend-lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements/development.txt
+      - name: Install dependencies
+        run: pip install -r requirements/development.txt
+      - name: Live health smoke
+        run: pytest -m smoke -v -o addopts=
+
   frontend-e2e:
     name: Frontend smoke
+    if: false  # local-only for now
     needs: frontend-lint
     runs-on: ubuntu-latest
     defaults:

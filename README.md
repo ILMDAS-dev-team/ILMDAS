@@ -79,7 +79,7 @@ docker compose -f docker-compose.dev.yml up -d --build
 
 These passwords exist only for the local Docker stack. They are not production secrets.
 
-In the MinIO console at http://localhost:9011, create a bucket named `ilmdas-digital-objects`. Leave it private. Do not add an anonymous read policy.
+Compose starts `minio-init`, which creates the private bucket `ilmdas-files`. You do not need to create it in the console.
 
 Compose injects backend environment with Docker service hostnames. You do not need `backend/.env` for this path.
 
@@ -121,10 +121,11 @@ npm run type-check
 npm run format:check
 npm run test:coverage
 npm run build
-npm run test:e2e
 ```
 
-Continuous integration runs those checks (backend coverage gate 80%, frontend coverage + `next build`, Playwright smoke). Codecov upload runs when `CODECOV_TOKEN` is set. A failing command fails the workflow. Deployment, Docker image publish, and PostGIS checks are not in CI. See [docs/ILMDAS_Team_CI-CD.md](docs/ILMDAS_Team_CI-CD.md).
+Local smoke: `make backend-smoke` and `make frontend-e2e`.
+
+Continuous integration runs lint plus unit/coverage gates (backend coverage 80%, frontend coverage + `next build`). Backend and frontend smoke jobs stay in the workflow with `if: false` (Skipped); flip to `if: true` to enable them in CI. Codecov upload runs when `CODECOV_TOKEN` is set. A failing command fails the workflow. Deployment, Docker image publish, and PostGIS checks are not in CI. See [docs/ILMDAS_Team_CI-CD.md](docs/ILMDAS_Team_CI-CD.md).
 
 ## Further reading
 

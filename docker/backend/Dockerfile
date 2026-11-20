@@ -9,8 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements/ requirements/
+ENV PIP_DEFAULT_TIMEOUT=100 \
+    PIP_RETRIES=10
 RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements/production.txt
+    && pip install --no-cache-dir --retries 10 --timeout 100 \
+       -r requirements/production.txt
 
 FROM python:3.12-slim-bookworm AS runtime
 

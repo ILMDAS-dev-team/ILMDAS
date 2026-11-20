@@ -58,10 +58,11 @@ A failing command fails the job. Jobs do not set `continue-on-error` on test ste
 | # | Job | What it runs | Reproduce locally |
 |---|---|---|---|
 | 1 | Backend lint | Ruff, `ruff format --check`, mypy | `DC exec backend ruff check .` → `ruff format --check .` → `mypy apps config` |
-| 2 | Backend tests | `pytest apps/ --cov=apps --cov-report=xml --cov-fail-under=80` + Codecov | `DC exec backend python -m pytest apps/ --cov=apps --cov-fail-under=80 -v` |
+| 2 | Backend tests | `pytest apps/ --cov=apps --cov-report=xml --cov-fail-under=80` + Codecov (skips `@pytest.mark.smoke`) | `DC exec backend python -m pytest apps/ --cov=apps --cov-fail-under=80 -v` |
 | 3 | Frontend lint | ESLint, `tsc --noEmit`, Prettier | `cd frontend` → `npm run lint` → `npm run type-check` → `npm run format:check` |
 | 4 | Frontend tests | `npm run test:coverage`, `npm run build`, Codecov | same two commands from `frontend` |
-| 5 | Frontend smoke | Playwright Chromium on public + staff | `cd frontend` → `npx playwright install chromium` → `npm run test:e2e` |
+| 5 | Backend smoke | `pytest -m smoke` (job present, `if: false` → **Skipped**) | `make backend-smoke` |
+| 6 | Frontend smoke | Playwright (job present, `if: false` → **Skipped**) | `make frontend-e2e` |
 
 Suite-wide backend coverage must stay at **80%**. Codecov patch target is **90%**
 ([`codecov.yml`](../codecov.yml)). Codecov upload runs only when repository secret
@@ -69,8 +70,10 @@ Suite-wide backend coverage must stay at **80%**. Codecov patch target is **90%*
 the token set, upload failures fail the job (`fail_ci_if_error: true`).
 
 Jest collects coverage but does **not** enforce a Jest `%` threshold (same as
-OUPDMS). Playwright smoke runs on every PR (stronger than OUPDMS’s staging-gated
-E2E). PostGIS/GDAL, Redis integration, and deploy jobs are intentionally absent.
+OUPDMS). Smoke jobs stay in the workflow with `if: false` so they show as
+**Skipped**; flip to `if: true` when CI should run them. Until then use
+`make backend-smoke` and `make frontend-e2e` locally. PostGIS/GDAL, Redis
+integration, and deploy jobs are intentionally absent.
 
 ## What to run before you open a pull request
 
@@ -83,7 +86,7 @@ docker compose -f docker-compose.dev.yml exec backend mypy apps config
 docker compose -f docker-compose.dev.yml exec backend python -m pytest apps/ --cov=apps --cov-fail-under=80 -v
 ```
 
-Frontend, from `frontend`:
+Frontend, from `frontend` (CI gates; smoke is separate):
 
 ```powershell
 npm run lint
@@ -91,12 +94,20 @@ npm run type-check
 npm run format:check
 npm run test:coverage
 npm run build
-npm run test:e2e
+```
+
+Or one line for those gates (without e2e): from `frontend`, run the five scripts
+above. Full local frontend suite including Playwright: `make frontend-check`.
+
+Local smoke (compose up; CI jobs exist but are skipped via `if: false`):
+
+```powershell
+make backend-smoke
+make frontend-e2e
 ```
 
 Or use Make (Git Bash / WSL / macOS / Linux): `make up`, `make migrate`,
-`make backend-lint`, `make backend-test`, `make frontend-lint`,
-`make frontend-test`, `make frontend-build`, `make frontend-e2e`. See `make help`.
+`make backend-lint`, `make backend-test`, `make frontend-check`. See `make help`.
 
 ## What the tests are protecting
 
@@ -122,6 +133,7 @@ Or use Make (Git Bash / WSL / macOS / Linux): `make up`, `make migrate`,
 | Migrate | `make migrate` |
 | Stop stack | `make down` |
 | Backend coverage tests | `make backend-test` |
+| Backend live health smoke | `make backend-smoke` |
 | Frontend coverage | `make frontend-test` |
 | Production Next build | `make frontend-build` |
-| Playwright smoke | `make frontend-e2e` |
+| Playwright smoke (local) | `make frontend-e2e` |
