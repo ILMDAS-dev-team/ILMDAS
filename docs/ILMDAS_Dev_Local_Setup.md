@@ -50,6 +50,7 @@ docker compose -f docker-compose.dev.yml ps
 Or: `make up`.
 
 Wait until `backend`, `postgres`, `elasticsearch`, and `minio` are running.
+`minio-init` creates the private bucket `ilmdas-files` and then exits.
 Elasticsearch can take a minute the first time.
 
 Confirm search from the host:
@@ -61,15 +62,10 @@ curl http://localhost:9200
 You should see a JSON body with a cluster name. If the connection is refused, Docker
 is not running or port 9200 is already taken.
 
-### Create the private bucket
-
-1. Open http://localhost:9011
-2. Sign in with user `ilmdas` and password `ilmdas-local-only`
-3. Create a bucket named `ilmdas-digital-objects`
-4. Do not turn on anonymous or public access
-
 The API stores a checksum and an `s3://` reference. It does not store the file in
-PostgreSQL, and it does not return a public URL.
+PostgreSQL, and it does not return a public URL. Optional: open the object-storage
+console at http://localhost:9011 (user `ilmdas` / password `ilmdas-local-only`) to
+inspect the bucket. Leave anonymous access off.
 
 Compose already injects backend environment (Postgres/ES/MinIO service hostnames).
 You do **not** need `backend/.env` for the Docker path. `backend/.env.example`
@@ -86,7 +82,8 @@ Or: `make migrate`.
 
 - `"status": "ok"` means the database, Elasticsearch, and the bucket all answered.
 - `"status": "failed"` with HTTP 503 means a check is `not configured` or
-  `unreachable`. Start the matching container or create the private bucket.
+  `unreachable`. Start the matching container or re-run compose so
+  `minio-init` can create the bucket.
 
 Create a Django admin user only when you need the admin site:
 
@@ -159,9 +156,23 @@ npm run build
 npm run test:e2e
 ```
 
+Or one line (same gates): `make frontend-check`
+Or from `frontend`: `npm run check`
+
+Local smoke (compose must be up; CI jobs exist but are **Skipped** via `if: false`):
+
+```powershell
+make backend-smoke
+make frontend-e2e
+```
+
+`make backend-smoke` GETs `http://localhost:8010/api/v1/health/` and expects
+`"status": "ok"`. Override the base URL with `SMOKE_BASE_URL` if needed.
+
 Pytest uses SQLite inside the container for unit tests, so it does not need live
 Postgres for those cases. `migrate` against the compose database is the check that
-the same migrations apply to PostgreSQL.
+the same migrations apply to PostgreSQL. Smoke is excluded from default pytest
+via `-m "not smoke"`.
 
 CI uploads coverage to Codecov (patch target 90%) when `CODECOV_TOKEN` is set.
 Without the secret, upload is skipped; the coverage gates still apply.
@@ -179,9 +190,9 @@ and bucket data.
 
 Only if you prefer a host venv instead of the backend container. Install Python
 3.12+, copy `backend/.env.example` to `backend/.env`, and use **localhost** URLs
-(Postgres on host port **5433**, MinIO on **9010**). Keep compose running for infra
-only, or stop the `backend` service. This path is optional; the default team path
-is Docker.
+(Postgres on host port **5433**, object storage on **9010**). Keep compose running for
+infra only, or stop the `backend` service. This path is optional; the default team
+path is Docker.
 
 ## Troubleshooting
 
@@ -189,7 +200,7 @@ is Docker.
 |---|---|
 | Backend container restarting | `docker compose -f docker-compose.dev.yml logs backend` |
 | Health says the database is unreachable | Wait for postgres healthy; confirm migrate ran |
-| Health says object storage is unreachable | Create the private bucket `ilmdas-digital-objects` on port 9011 |
+| Health says object storage is unreachable | Confirm `minio` is Up; check `minio-init` exited 0 |
 | Port 5433, 8010, 9010, or 9200 is in use | Stop the other process or change the host port in compose |
 | Coverage below 80% | Read the missing-lines report; add tests before changing omit rules |
 | Codecov upload skipped in CI | Optional until `CODECOV_TOKEN` is set |

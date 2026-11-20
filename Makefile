@@ -9,7 +9,8 @@ DC = docker compose -f docker-compose.dev.yml
 
 .DEFAULT_GOAL := help
 .PHONY: help up down logs ps migrate superuser backend-shell backend-lint backend-test \
-        frontend-install frontend-lint frontend-test frontend-build frontend-e2e
+        backend-smoke frontend-install frontend-lint frontend-test frontend-build \
+        frontend-e2e frontend-check
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-18s %s\n", $$1, $$2}'
@@ -43,6 +44,9 @@ backend-lint: ## Ruff + format check + mypy in the backend container
 backend-test: ## Pytest with coverage gate (>=80%) in the backend container
 	$(DC) exec backend python -m pytest apps/ --cov=apps --cov-report=term-missing --cov-fail-under=80 -v
 
+backend-smoke: ## Live GET /api/v1/health/ (compose must be up on :8010)
+	cd backend && python -m pytest -m smoke -v -o addopts=
+
 frontend-install: ## Install frontend dependencies
 	cd frontend && npm ci
 
@@ -57,3 +61,6 @@ frontend-build: ## Next.js production build
 
 frontend-e2e: ## Playwright Chromium smoke
 	cd frontend && npm run test:e2e
+
+frontend-check: ## All frontend quality gates in one command
+	cd frontend && npm run check

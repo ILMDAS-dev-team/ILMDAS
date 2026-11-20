@@ -54,7 +54,8 @@ those values in code or fixtures.
 - Backend: `ruff check .`, `ruff format --check .`, `mypy apps config`, and
   `pytest apps/ --cov=apps --cov-fail-under=80`.
 - Frontend: `npm run lint`, `npm run type-check`, `npm run format:check`,
-  `npm run test:coverage`, `npm run build`, and `npm run test:e2e`.
+  `npm run test:coverage`, and `npm run build`.
+- Optional local smoke (not CI): `make backend-smoke`, `make frontend-e2e`.
 - OpenAPI annotations and RBAC/scope rules are added when those features land.
 
 `.github/CODEOWNERS` is a scaffold placeholder. Per-app GitHub owners are not

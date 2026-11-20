@@ -14,6 +14,10 @@ ignore = ["E501"]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 pythonpath = ["."]
 testpaths = ["apps"]
+markers = [
+    "smoke: live stack smoke (compose must be up; skipped by default)",
+]
+addopts = ["-m", "not smoke"]
 
 [tool.coverage.run]
 branch = true

@@ -19,8 +19,9 @@ root [README](../README.md).
   - [`docker/frontend/Dockerfile`](../docker/frontend/Dockerfile) (production Next standalone)
 - Production-shaped compose: [`docker/docker-compose.prod.yml`](../docker/docker-compose.prod.yml).
   Nginx is **not** wired yet. Celery is **not** part of ILMDAS.
-- CI today: lint, pytest with 80% coverage, Jest coverage, `next build`, Playwright
-  smoke, optional Codecov upload. No GHCR push and no SSH deploy.
+- CI today: lint, pytest with 80% coverage, Jest coverage, `next build`, optional
+  Codecov upload. Backend/frontend smoke jobs exist with `if: false` (Skipped).
+  No GHCR push and no SSH deploy.
 
 ## Secret categories (when deploy is approved)
 

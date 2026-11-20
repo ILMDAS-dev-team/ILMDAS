@@ -17,6 +17,6 @@ npm run build
 npm run test:e2e
 ```
 
-`npm run test:coverage` runs Jest with coverage. `npm run build` is the production build CI also runs (`output: "standalone"` for `docker/frontend/Dockerfile`). `npm run test:e2e` opens Chromium on port 3010.
+`npm run test:coverage` runs Jest with coverage. `npm run build` is the production build CI also runs (`output: "standalone"` for `docker/frontend/Dockerfile`). `npm run test:e2e` is local Playwright smoke (not run in CI); use `make frontend-e2e` from the repo root.
 
 The dev server listens on http://localhost:3010. It calls the Django API at `NEXT_PUBLIC_API_URL`, which defaults to http://localhost:8010.

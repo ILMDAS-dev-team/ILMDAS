@@ -22,7 +22,7 @@ x-backend-env: &backend-env
   S3_ENDPOINT_URL: http://minio:9000
   S3_ACCESS_KEY_ID: ilmdas # pragma: allowlist secret
   S3_SECRET_ACCESS_KEY: ilmdas-local-only # pragma: allowlist secret
-  S3_BUCKET_NAME: ilmdas-digital-objects
+  S3_BUCKET_NAME: ilmdas-files
   S3_REGION: us-east-1
   IIIF_ENDPOINT: ""
   IIIF_FIXTURE_IDENTIFIER: fixture-image
@@ -45,6 +45,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      minio-init:
+        condition: service_completed_successfully
 
   postgres:
     image: postgres:16
@@ -73,8 +75,9 @@ services:
     volumes:
       - ilmdas_elasticsearch:/usr/share/elasticsearch/data
 
+  # S3-compatible object storage (Silo; MinIO-compatible API).
   minio:
-    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ilmdas
@@ -84,6 +87,30 @@ services:
       - "9011:9001"
     volumes:
       - ilmdas_minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  # One-shot: create the private app bucket before backend starts.
+  minio-init:
+    image: pgsty/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ilmdas
+      MINIO_ROOT_PASSWORD: ilmdas-local-only # pragma: allowlist secret
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing local/ilmdas-files
+        mc anonymous set none local/ilmdas-files
+    restart: "no"
 
 volumes:
   ilmdas_postgres:
