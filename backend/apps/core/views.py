@@ -141,9 +141,8 @@ class ObjectUploadView(APIView):
 
         # SEC-01: Check for existing key in database and storage before writing
         storage = ObjectStorage()
-        if (
-            ObjectReference.objects.filter(object_key=object_key).exists()
-            or storage.exists(object_key)
+        if ObjectReference.objects.filter(object_key=object_key).exists() or storage.exists(
+            object_key
         ):
             raise Conflict(f"Object with key '{object_key}' already exists.")
 

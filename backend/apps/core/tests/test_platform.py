@@ -664,4 +664,3 @@ def test_anonymous_health_returns_only_overall_status(api_client):
     assert response.status_code == 200
     assert response.data == {"status": "ok"}
     assert "checks" not in response.data
-
