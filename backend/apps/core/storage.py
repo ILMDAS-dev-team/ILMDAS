@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 from dataclasses import dataclass
 
@@ -67,10 +68,8 @@ class ObjectStorage:
         except ObjectStorageError:
             return
         if hasattr(client, "delete_object"):
-            try:
+            with contextlib.suppress(Exception):
                 client.delete_object(Bucket=self.bucket, Key=object_key)
-            except Exception:
-                pass
 
     def put_private(
         self, object_key: str, body: bytes, content_type: str = "application/octet-stream"

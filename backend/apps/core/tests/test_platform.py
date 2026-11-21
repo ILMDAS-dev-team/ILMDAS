@@ -537,7 +537,9 @@ def test_object_reference_str():
 
 
 @pytest.mark.django_db
-def test_upload_existing_object_key_returns_conflict_and_preserves_object(api_client, django_user_model):
+def test_upload_existing_object_key_returns_conflict_and_preserves_object(
+    api_client, django_user_model
+):
     user = django_user_model.objects.create_user(username="archivist", password="local-only")
     api_client.force_authenticate(user)
     initial_record = ObjectReference.objects.create(
@@ -607,12 +609,12 @@ def test_wsgi_and_asgi_default_to_production():
     env["DATABASE_URL"] = "postgres://localhost/test"
     env["ILMDAS_SKIP_ENV_FILE"] = "1"
     for module in ("config.wsgi", "config.asgi"):
+        cmd = (
+            f"import os; import {module}; from django.conf import settings; "
+            "print(settings.ENVIRONMENT, settings.DEBUG)"
+        )
         result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                f"import os; import {module}; from django.conf import settings; print(settings.ENVIRONMENT, settings.DEBUG)",
-            ],
+            [sys.executable, "-c", cmd],
             cwd=BACKEND_DIR,
             env=env,
             capture_output=True,
