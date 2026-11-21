@@ -1,7 +1,9 @@
 # ILMDAS continuous integration and team workflow
 
-Every pull request and every push to `main` or `develop` runs
+Every pull request into `main` or `develop` runs
 [`.github/workflows/ci-cd.yml`](../.github/workflows/ci-cd.yml).
+Direct pushes to those branches do not start CI — open or update a PR instead
+(saves Actions minutes on the free plan).
 
 Deployment to the OSTA data center is **not** part of this workflow. There is no
 Docker image publish, staging auto-deploy, or production `workflow_dispatch`.
