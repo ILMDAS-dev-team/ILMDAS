@@ -14,6 +14,10 @@ class ObjectStorageError(RuntimeError):
     pass
 
 
+class ObjectStorageConflictError(ObjectStorageError):
+    pass
+
+
 @dataclass(frozen=True)
 class StoredObject:
     reference: str
@@ -40,9 +44,41 @@ class ObjectStorage:
             config=Config(signature_version="s3v4"),
         )
 
+    def exists(self, object_key: str) -> bool:
+        if not object_key:
+            return False
+        try:
+            client = self._client()
+        except ObjectStorageError:
+            return False
+        if not hasattr(client, "head_object"):
+            return False
+        try:
+            client.head_object(Bucket=self.bucket, Key=object_key)
+            return True
+        except Exception:
+            return False
+
+    def delete(self, object_key: str) -> None:
+        if not object_key:
+            return
+        try:
+            client = self._client()
+        except ObjectStorageError:
+            return
+        if hasattr(client, "delete_object"):
+            try:
+                client.delete_object(Bucket=self.bucket, Key=object_key)
+            except Exception:
+                pass
+
     def put_private(
         self, object_key: str, body: bytes, content_type: str = "application/octet-stream"
     ) -> StoredObject:
+        if self.exists(object_key):
+            raise ObjectStorageConflictError(
+                f"Object with key '{object_key}' already exists in storage."
+            )
         checksum = hashlib.sha256(body).hexdigest()
         self._client().put_object(
             Bucket=self.bucket,
