@@ -10,6 +10,7 @@ from .views import (
     IiifStatusView,
     ObjectDetailView,
     ObjectUploadView,
+    PresignedUploadView,
     SessionProbeView,
     ValidationProbeView,
 )
@@ -17,6 +18,7 @@ from .views import (
 urlpatterns = [
     path("health/", HealthView.as_view(), name="health"),
     path("storage/objects/", ObjectUploadView.as_view(), name="storage-upload"),
+    path("storage/presign/", PresignedUploadView.as_view(), name="storage-presign"),
     path("storage/objects/<int:object_id>/", ObjectDetailView.as_view(), name="storage-detail"),
     path("iiif/status/", IiifStatusView.as_view(), name="iiif-status"),
     path("search/catalogue-index/", CatalogueIndexView.as_view(), name="catalogue-index"),

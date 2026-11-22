@@ -1,4 +1,12 @@
-export default function StaffHomePage() {
+import { redirect } from "next/navigation"
+import { verifyStaffSession } from "@/lib/auth"
+
+export default async function StaffHomePage() {
+  const isAuthenticated = await verifyStaffSession()
+  if (!isAuthenticated) {
+    redirect("/sign-in")
+  }
+
   return (
     <section>
       <h1>Staff workspace</h1>
