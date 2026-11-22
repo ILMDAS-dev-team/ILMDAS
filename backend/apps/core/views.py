@@ -18,9 +18,15 @@ from rest_framework.response import Response
 from rest_framework.serializers import CharField, Serializer
 from rest_framework.views import APIView
 
+from apps.accounts.throttling import UploadRateThrottle
+from apps.audit.models import record_audit_event
+
+from .content_type import ALLOWED_MIME_TYPES, MAX_UPLOAD_SIZE, validate_upload_content
 from .exceptions import Conflict, ServiceUnavailable
 from .iiif import IiifClient
 from .models import ObjectReference
+from .permissions import CanManageSearchIndex, CanUploadArchiveObject, CanViewObjectDetail
+from .scanner import MalwareScanStatus, scan_object
 from .search import CatalogueIndex
 from .storage import ObjectStorage, ObjectStorageConflictError, ObjectStorageError
 
@@ -132,7 +138,8 @@ class ErrorProbeView(APIView):
 
 
 class ObjectUploadView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanUploadArchiveObject]
+    throttle_classes = [UploadRateThrottle]
 
     def post(self, request):
         encoded = request.data.get("bodyBase64", "")
@@ -150,6 +157,14 @@ class ObjectUploadView(APIView):
             body = base64.b64decode(encoded, validate=True)
         except (binascii.Error, ValueError) as exc:
             raise ValidationError({"bodyBase64": ["bodyBase64 is not valid base64."]}) from exc
+
+        # SEC-09: Validate content by magic bytes and enforce size limits
+        content_type = validate_upload_content(body)
+
+        # SEC-09: Malware scanning hook
+        scan_result = scan_object(body)
+        if scan_result["status"] == MalwareScanStatus.INFECTED:
+            raise ValidationError({"bodyBase64": [f"Malware detected: {scan_result['detail']}"]})
 
         object_key = request.data.get("objectKey", "")
         if isinstance(object_key, str):
@@ -180,7 +195,7 @@ class ObjectUploadView(APIView):
             raise Conflict(f"Object with key '{object_key}' already exists.")
 
         try:
-            stored = storage.put_private(object_key, body)
+            stored = storage.put_private(object_key, body, content_type=content_type)
         except ObjectStorageConflictError as exc:
             raise Conflict(str(exc)) from exc
         except ObjectStorageError as exc:
@@ -193,10 +208,27 @@ class ObjectUploadView(APIView):
                     object_key=stored.object_key,
                     reference=stored.reference,
                     checksum_sha256=stored.checksum_sha256,
+                    content_type=content_type,
+                    scan_status=scan_result["status"],
                 )
         except IntegrityError as exc:
             storage.delete(stored.object_key)
             raise Conflict(f"Object with key '{stored.object_key}' already exists.") from exc
+
+        # SEC-17: Record audit event for sensitive archive upload
+        record_audit_event(
+            action="storage.upload",
+            actor=request.user,
+            object_type="ObjectReference",
+            object_id=str(record.id),
+            details={
+                "object_key": record.object_key,
+                "checksum": record.checksum_sha256,
+                "content_type": record.content_type,
+                "scan_status": record.scan_status,
+            },
+            request=request,
+        )
 
         return Response(
             {
@@ -204,13 +236,59 @@ class ObjectUploadView(APIView):
                 "objectKey": record.object_key,
                 "reference": record.reference,
                 "checksumSha256": record.checksum_sha256,
+                "contentType": record.content_type,
+                "scanStatus": record.scan_status,
             },
             status=201,
         )
 
 
+class PresignedUploadView(APIView):
+    permission_classes = [CanUploadArchiveObject]
+    throttle_classes = [UploadRateThrottle]
+
+    def post(self, request):
+        filename = request.data.get("filename", "")
+        content_type = request.data.get("contentType", "application/octet-stream")
+        content_length = request.data.get("contentLength", 0)
+
+        if content_length > MAX_UPLOAD_SIZE:
+            raise ValidationError(
+                {
+                    "contentLength": [
+                        f"Requested size exceeds maximum limit of {MAX_UPLOAD_SIZE} bytes."
+                    ]
+                }
+            )
+        if content_type not in ALLOWED_MIME_TYPES:
+            raise ValidationError(
+                {"contentType": [f"Content type '{content_type}' is not permitted."]}
+            )
+
+        object_key = generate_object_key("archive")
+        storage = ObjectStorage()
+        presigned = storage.generate_presigned_upload(
+            object_key=object_key,
+            content_type=content_type,
+            max_size=MAX_UPLOAD_SIZE,
+        )
+        record_audit_event(
+            action="storage.presign",
+            actor=request.user,
+            object_type="PresignedUpload",
+            object_id=object_key,
+            details={
+                "content_type": content_type,
+                "max_size": MAX_UPLOAD_SIZE,
+                "filename": filename,
+            },
+            request=request,
+        )
+        return Response(presigned, status=200)
+
+
 class ObjectDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanViewObjectDetail]
 
     def get(self, request, object_id: int):
         try:
@@ -222,12 +300,14 @@ class ObjectDetailView(APIView):
                 "id": record.id,
                 "reference": record.reference,
                 "checksumSha256": record.checksum_sha256,
+                "contentType": record.content_type,
+                "scanStatus": record.scan_status,
             }
         )
 
 
 class IiifStatusView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanViewObjectDetail]
 
     def get(self, request):
         status = IiifClient().configuration_status()
@@ -236,12 +316,26 @@ class IiifStatusView(APIView):
 
 
 class CatalogueIndexView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanManageSearchIndex]
 
     def post(self, request):
         CatalogueIndex().rebuild()
+        record_audit_event(
+            action="search.index.rebuild",
+            actor=request.user,
+            object_type="CatalogueIndex",
+            object_id=CatalogueIndex().index_name,
+            request=request,
+        )
         return Response({"index": CatalogueIndex().index_name, "status": "rebuilt"}, status=201)
 
     def delete(self, request):
         CatalogueIndex().delete()
+        record_audit_event(
+            action="search.index.delete",
+            actor=request.user,
+            object_type="CatalogueIndex",
+            object_id=CatalogueIndex().index_name,
+            request=request,
+        )
         return Response(status=204)

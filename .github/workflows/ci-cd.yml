@@ -6,26 +6,31 @@ on:
 
 jobs:
   backend-lint:
-    name: Backend lint
+    name: Backend lint & static security
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0b93645e9dc2c792dd34f2439f4d22b332a75797 # v5.3.0
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements/development.txt
       - name: Install dependencies
-        run: pip install -r requirements/development.txt
-      - name: Ruff
+        run: pip install -r requirements/development.txt pip-audit detect-secrets
+      - name: Ruff Lint & Bandit Security (S rules)
         run: ruff check .
       - name: Ruff format
         run: ruff format --check .
       - name: Mypy
         run: mypy apps config
+      - name: Secret Scan
+        run: detect-secrets scan --baseline ../.secrets.baseline
+        working-directory: .
+      - name: Python Dependency Audit
+        run: pip-audit -r requirements/base.txt
 
   backend-tests:
     name: Backend tests
@@ -37,8 +42,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0b93645e9dc2c792dd34f2439f4d22b332a75797 # v5.3.0
         with:
           python-version: "3.12"
           cache: pip
@@ -51,7 +56,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.settings.test
       - name: Upload coverage report
         if: env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
         with:
           files: backend/coverage.xml
           flags: backend
@@ -59,14 +64,14 @@ jobs:
           token: ${{ env.CODECOV_TOKEN }}
 
   frontend-lint:
-    name: Frontend lint
+    name: Frontend lint & dependency audit
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "20"
           cache: npm
@@ -79,6 +84,8 @@ jobs:
         run: npm run type-check
       - name: Prettier
         run: npm run format:check
+      - name: Npm Audit
+        run: npm audit --audit-level=high --omit=dev
 
   frontend-tests:
     name: Frontend tests
@@ -90,8 +97,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "20"
           cache: npm
@@ -104,7 +111,7 @@ jobs:
         run: npm run build
       - name: Upload coverage report
         if: env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4.6.0
         with:
           files: frontend/coverage/lcov.info
           flags: frontend
@@ -120,8 +127,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0b93645e9dc2c792dd34f2439f4d22b332a75797 # v5.3.0
         with:
           python-version: "3.12"
           cache: pip
@@ -140,8 +147,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: "20"
           cache: npm

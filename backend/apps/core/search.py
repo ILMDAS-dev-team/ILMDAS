@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from elasticsearch import Elasticsearch
 
 
@@ -20,7 +21,29 @@ class CatalogueIndex:
             return self.client
         if not settings.ELASTICSEARCH_URL:
             raise SearchNotConfigured("Elasticsearch is not configured")
-        return Elasticsearch(settings.ELASTICSEARCH_URL, request_timeout=2)
+
+        is_production = getattr(settings, "ENVIRONMENT", "development") == "production"
+        if is_production and not settings.ELASTICSEARCH_URL.lower().startswith("https://"):
+            raise ImproperlyConfigured("Elasticsearch connection in production must use HTTPS")
+
+        verify_certs = getattr(settings, "ELASTICSEARCH_VERIFY_CERTS", True)
+        if is_production and not verify_certs:
+            raise ImproperlyConfigured(
+                "Elasticsearch certificate verification must be enabled in production"
+            )
+
+        client_kwargs: dict = {
+            "request_timeout": 2,
+            "verify_certs": verify_certs,
+        }
+        api_key = getattr(settings, "ELASTICSEARCH_API_KEY", "")
+        if api_key:
+            client_kwargs["api_key"] = api_key
+        ca_certs = getattr(settings, "ELASTICSEARCH_CA_CERTS", "")
+        if ca_certs:
+            client_kwargs["ca_certs"] = ca_certs
+
+        return Elasticsearch(settings.ELASTICSEARCH_URL, **client_kwargs)
 
     def _guard_non_production(self) -> None:
         if getattr(settings, "ENVIRONMENT", "development") == "production":
