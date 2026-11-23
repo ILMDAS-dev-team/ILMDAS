@@ -94,6 +94,24 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("pending", "Pending"),
+                            ("active", "Active"),
+                            ("inactive", "Inactive"),
+                            ("suspended", "Suspended"),
+                            ("deactivated", "Deactivated"),
+                        ],
+                        db_index=True,
+                        default="active",
+                        help_text=(
+                            "Account lifecycle status (active, inactive, suspended, deactivated, pending)."
+                        ),
+                        max_length=32,
+                    ),
+                ),
+                (
                     "role",
                     models.CharField(
                         choices=[
@@ -105,6 +123,21 @@ class Migration(migrations.Migration):
                         db_index=True,
                         default="member",
                         max_length=32,
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        db_index=True,
+                        default=django.utils.timezone.now,
+                        help_text="Timestamp when the user account was created.",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="Timestamp when the user account was last modified.",
                     ),
                 ),
                 (
@@ -135,6 +168,8 @@ class Migration(migrations.Migration):
             ],
             options={
                 "ordering": ["username"],
+                "verbose_name": "user account",
+                "verbose_name_plural": "user accounts",
             },
             managers=[
                 ("objects", django.contrib.auth.models.UserManager()),

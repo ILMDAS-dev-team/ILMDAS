@@ -17,7 +17,7 @@ def test_audit_package_imports():
 @pytest.mark.django_db
 def test_audit_record_creation_and_fields():
     user_model = get_user_model()
-    actor = user_model.objects.create_user(username="auditor", password="ValidPassword123!")
+    actor = user_model.objects.create_user(username="auditor", password="Test@123456!")
 
     record = record_audit_event(
         action="test.action",
