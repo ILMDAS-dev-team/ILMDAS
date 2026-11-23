@@ -4,20 +4,41 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
+import re
+import uuid
 
-from django.db import connection
+from django.conf import settings
+from django.db import IntegrityError, connection, transaction
 from django.http import Http404
+from django.utils import timezone
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied, Throttled, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.serializers import CharField, Serializer
 from rest_framework.views import APIView
 
-from .exceptions import Conflict
+from .exceptions import Conflict, ServiceUnavailable
 from .iiif import IiifClient
 from .models import ObjectReference
 from .search import CatalogueIndex
-from .storage import ObjectStorage, ObjectStorageError
+from .storage import ObjectStorage, ObjectStorageConflictError, ObjectStorageError
+
+logger = logging.getLogger("ilmdas.storage")
+
+SAFE_PREFIX_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+SAFE_KEY_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\./]+$")
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_BASE64_LENGTH = ((4 * MAX_UPLOAD_BYTES // 3) + 3) & ~3
+
+
+def generate_object_key(prefix: str = "archive") -> str:
+    """Generate a server-side object key with date prefix and UUID."""
+    if not isinstance(prefix, str) or not SAFE_PREFIX_PATTERN.match(prefix):
+        prefix = "archive"
+    date_path = timezone.now().strftime("%Y/%m/%d")
+    return f"{prefix}/{date_path}/{uuid.uuid4().hex}"
 
 
 class ProbeSerializer(Serializer):
@@ -45,18 +66,24 @@ def collect_health() -> dict:
 
 
 class HealthView(APIView):
-    authentication_classes: list = []
     permission_classes = [AllowAny]
 
     def get(self, request):
         payload = collect_health()
         status_code = 200 if payload["status"] == "ok" else 503
-        return Response(payload, status=status_code)
+        if request.user and request.user.is_authenticated:
+            return Response(payload, status=status_code)
+        return Response({"status": payload["status"]}, status=status_code)
 
 
 class ValidationProbeView(APIView):
     authentication_classes: list = []
     permission_classes = [AllowAny]
+
+    def dispatch(self, request, *args, **kwargs):
+        if getattr(settings, "ENVIRONMENT", "") == "production":
+            raise Http404()
+        return super().dispatch(request, *args, **kwargs)
 
     def post(self, request):
         serializer = ProbeSerializer(data=request.data)
@@ -67,6 +94,11 @@ class ValidationProbeView(APIView):
 class SessionProbeView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def dispatch(self, request, *args, **kwargs):
+        if getattr(settings, "ENVIRONMENT", "") == "production":
+            raise Http404()
+        return super().dispatch(request, *args, **kwargs)
+
     def get(self, request):
         return Response({"authenticated": True})
 
@@ -76,6 +108,11 @@ class ErrorProbeView(APIView):
 
     authentication_classes: list = []
     permission_classes = [AllowAny]
+
+    def dispatch(self, request, *args, **kwargs):
+        if getattr(settings, "ENVIRONMENT", "") == "production":
+            raise Http404()
+        return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
         kind = request.query_params.get("kind", "")
@@ -98,26 +135,73 @@ class ObjectUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        object_key = request.data.get("objectKey", "")
         encoded = request.data.get("bodyBase64", "")
-        if not object_key or not encoded:
-            raise ValidationError({"objectKey": ["objectKey and bodyBase64 are required."]})
+        if not isinstance(encoded, str) or not encoded.strip():
+            raise ValidationError({"bodyBase64": ["bodyBase64 is required."]})
+        if len(encoded) > MAX_BASE64_LENGTH:
+            raise ValidationError(
+                {
+                    "bodyBase64": [
+                        f"Payload exceeds maximum allowed size of {MAX_UPLOAD_BYTES // (1024 * 1024)}MB."
+                    ]
+                }
+            )
         try:
             body = base64.b64decode(encoded, validate=True)
         except (binascii.Error, ValueError) as exc:
             raise ValidationError({"bodyBase64": ["bodyBase64 is not valid base64."]}) from exc
+
+        object_key = request.data.get("objectKey", "")
+        if isinstance(object_key, str):
+            object_key = object_key.strip()
+        if object_key:
+            if (
+                ".." in object_key
+                or object_key.startswith("/")
+                or not SAFE_KEY_PATTERN.match(object_key)
+            ):
+                raise ValidationError(
+                    {
+                        "objectKey": [
+                            "Invalid objectKey. Path traversal characters ('..') and leading slashes are forbidden."
+                        ]
+                    }
+                )
+        else:
+            raw_prefix = request.data.get("prefix", "archive")
+            prefix = raw_prefix if isinstance(raw_prefix, str) else "archive"
+            object_key = generate_object_key(prefix)
+
+        # SEC-01: Check for existing key in database and storage before writing
+        storage = ObjectStorage()
+        if ObjectReference.objects.filter(object_key=object_key).exists() or storage.exists(
+            object_key
+        ):
+            raise Conflict(f"Object with key '{object_key}' already exists.")
+
         try:
-            stored = ObjectStorage().put_private(object_key, body)
+            stored = storage.put_private(object_key, body)
+        except ObjectStorageConflictError as exc:
+            raise Conflict(str(exc)) from exc
         except ObjectStorageError as exc:
-            raise RuntimeError("object storage is unavailable") from exc
-        record = ObjectReference.objects.create(
-            object_key=stored.object_key,
-            reference=stored.reference,
-            checksum_sha256=stored.checksum_sha256,
-        )
+            logger.error("Object storage failure during upload: %s", exc)
+            raise ServiceUnavailable("Object storage is unavailable.") from exc
+
+        try:
+            with transaction.atomic():
+                record = ObjectReference.objects.create(
+                    object_key=stored.object_key,
+                    reference=stored.reference,
+                    checksum_sha256=stored.checksum_sha256,
+                )
+        except IntegrityError as exc:
+            storage.delete(stored.object_key)
+            raise Conflict(f"Object with key '{stored.object_key}' already exists.") from exc
+
         return Response(
             {
                 "id": record.id,
+                "objectKey": record.object_key,
                 "reference": record.reference,
                 "checksumSha256": record.checksum_sha256,
             },
