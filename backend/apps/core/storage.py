@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
+import logging
 from dataclasses import dataclass
 
 import boto3
 from botocore.client import Config
+from botocore.exceptions import ClientError
 from django.conf import settings
+
+logger = logging.getLogger("ilmdas.storage")
 
 
 class ObjectStorageError(RuntimeError):
@@ -48,28 +51,41 @@ class ObjectStorage:
     def exists(self, object_key: str) -> bool:
         if not object_key:
             return False
-        try:
-            client = self._client()
-        except ObjectStorageError:
-            return False
+        client = self._client()
         if not hasattr(client, "head_object"):
             return False
         try:
             client.head_object(Bucket=self.bucket, Key=object_key)
             return True
-        except Exception:
-            return False
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code", ""))
+            if code in ("404", "NoSuchKey", "NotFound"):
+                return False
+            logger.error("S3 head_object failed unexpectedly for key %s: %s", object_key, exc)
+            raise ObjectStorageError(f"Storage existence check failed: {exc}") from exc
+        except Exception as exc:
+            if isinstance(exc, ObjectStorageError):
+                raise
+            logger.error("Unexpected error checking storage key %s: %s", object_key, exc)
+            raise ObjectStorageError(f"Storage existence check failed: {exc}") from exc
 
     def delete(self, object_key: str) -> None:
         if not object_key:
             return
         try:
             client = self._client()
-        except ObjectStorageError:
+        except ObjectStorageError as exc:
+            logger.warning("Could not obtain S3 client to delete %s: %s", object_key, exc)
             return
         if hasattr(client, "delete_object"):
-            with contextlib.suppress(Exception):
+            try:
                 client.delete_object(Bucket=self.bucket, Key=object_key)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to delete storage object '%s' during cleanup: %s",
+                    object_key,
+                    exc,
+                )
 
     def put_private(
         self, object_key: str, body: bytes, content_type: str = "application/octet-stream"

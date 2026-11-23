@@ -35,6 +35,12 @@ class Conflict(APIException):
     default_code = "conflict"
 
 
+class ServiceUnavailable(APIException):
+    status_code = 503
+    default_detail = SAFE_MESSAGE["unavailable"]
+    default_code = "unavailable"
+
+
 def classify(exc: Exception) -> tuple[str, int, object | None]:
     if isinstance(exc, ValidationError):
         return "validation_error", 400, exc.detail

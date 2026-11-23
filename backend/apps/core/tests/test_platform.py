@@ -8,13 +8,15 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import dj_database_url
 import pytest
+from botocore.exceptions import ClientError
 from config.settings.env import require_env
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management import call_command
+from django.db import IntegrityError
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied, Throttled, ValidationError
 
 from apps.core.exceptions import Conflict, api_exception_handler
@@ -22,6 +24,7 @@ from apps.core.iiif import IiifClient
 from apps.core.models import ObjectReference
 from apps.core.search import CatalogueIndex, SearchNotConfigured
 from apps.core.storage import ObjectStorage, ObjectStorageError, StoredObject
+from apps.core.views import MAX_BASE64_LENGTH, generate_object_key
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 REPO_DIR = BACKEND_DIR.parent
@@ -605,7 +608,7 @@ def test_production_settings_hardening():
 def test_wsgi_and_asgi_default_to_production():
     env = os.environ.copy()
     env.pop("DJANGO_SETTINGS_MODULE", None)
-    env["SECRET_KEY"] = "test-secret"
+    env["SECRET_KEY"] = "test-secret"  # pragma: allowlist secret
     env["DATABASE_URL"] = "postgres://localhost/test"
     env["ILMDAS_SKIP_ENV_FILE"] = "1"
     for module in ("config.wsgi", "config.asgi"):
@@ -629,7 +632,7 @@ def test_production_settings_reject_debug_env():
     env = os.environ.copy()
     env["DJANGO_SETTINGS_MODULE"] = "config.settings.production"
     env["DEBUG"] = "1"
-    env["SECRET_KEY"] = "test-secret"
+    env["SECRET_KEY"] = "test-secret"  # pragma: allowlist secret
     env["DATABASE_URL"] = "postgres://localhost/test"
     env["ILMDAS_SKIP_ENV_FILE"] = "1"
     result = subprocess.run(
@@ -664,3 +667,116 @@ def test_anonymous_health_returns_only_overall_status(api_client):
     assert response.status_code == 200
     assert response.data == {"status": "ok"}
     assert "checks" not in response.data
+
+
+@pytest.mark.django_db
+def test_upload_rejects_path_traversal_keys(api_client, django_user_model):
+    user = django_user_model.objects.create_user(username="traversal_user", password="local-only")
+    api_client.force_authenticate(user)
+    body_b64 = base64.b64encode(b"safe-bytes").decode()
+
+    for bad_key in ["../escape", "archive/../../etc/passwd", "/absolute/path", "key with spaces"]:
+        response = api_client.post(
+            "/api/v1/storage/objects/",
+            {"objectKey": bad_key, "bodyBase64": body_b64},
+            format="json",
+        )
+        assert response.status_code == 400
+        assert response.data["code"] == "validation_error"
+        assert "objectKey" in response.data["errors"]
+
+
+def test_generate_object_key_sanitizes_unsafe_prefix():
+    key = generate_object_key("../malicious/prefix")
+    assert key.startswith("archive/")
+
+    key2 = generate_object_key("invalid prefix with spaces!")
+    assert key2.startswith("archive/")
+
+    key3 = generate_object_key("manuscripts")
+    assert key3.startswith("manuscripts/")
+
+
+@pytest.mark.django_db
+def test_upload_rejects_oversized_payload(api_client, django_user_model):
+    user = django_user_model.objects.create_user(username="large_user", password="local-only")
+    api_client.force_authenticate(user)
+    oversized_b64 = "A" * (MAX_BASE64_LENGTH + 10)
+    response = api_client.post(
+        "/api/v1/storage/objects/",
+        {"bodyBase64": oversized_b64},
+        format="json",
+    )
+    assert response.status_code == 400
+    assert response.data["code"] == "validation_error"
+    assert "bodyBase64" in response.data["errors"]
+
+
+@pytest.mark.django_db
+def test_upload_storage_unavailability_returns_503(api_client, django_user_model):
+    user = django_user_model.objects.create_user(username="s3_down_user", password="local-only")
+    api_client.force_authenticate(user)
+    body_b64 = base64.b64encode(b"some-data").decode()
+    with patch(
+        "apps.core.views.ObjectStorage.put_private",
+        side_effect=ObjectStorageError("Connection timeout"),
+    ):
+        response = api_client.post(
+            "/api/v1/storage/objects/",
+            {"bodyBase64": body_b64},
+            format="json",
+        )
+    assert response.status_code == 503
+    assert response.data["code"] == "unavailable"
+
+
+def test_object_storage_exists_error_handling():
+    mock_client = MagicMock()
+    storage = ObjectStorage(client=mock_client, bucket="test-bucket")
+
+    # When S3 returns 404 ClientError, exists() returns False
+    err_response_404 = {"Error": {"Code": "404", "Message": "Not Found"}}
+    mock_client.head_object.side_effect = ClientError(err_response_404, "HeadObject")
+    assert storage.exists("non-existent-key") is False
+
+    # When S3 returns 500 or 403, exists() raises ObjectStorageError
+    err_response_500 = {"Error": {"Code": "500", "Message": "Internal Error"}}
+    mock_client.head_object.side_effect = ClientError(err_response_500, "HeadObject")
+    with pytest.raises(ObjectStorageError):
+        storage.exists("error-key")
+
+
+def test_object_storage_delete_graceful_logging():
+    mock_client = MagicMock()
+    storage = ObjectStorage(client=mock_client, bucket="test-bucket")
+
+    mock_client.delete_object.side_effect = ClientError({"Error": {"Code": "500"}}, "DeleteObject")
+    storage.delete("some-key")  # does not raise
+
+
+@pytest.mark.django_db
+def test_upload_rolls_back_storage_on_db_integrity_error(api_client, django_user_model):
+    user = django_user_model.objects.create_user(username="rollback_user", password="local-only")
+    api_client.force_authenticate(user)
+    body = b"data-for-rollback"
+    stored = StoredObject(
+        reference="s3://ilmdas-files/archive/test/rb",
+        checksum_sha256=hashlib.sha256(body).hexdigest(),
+        object_key="archive/test/rb",
+    )
+    with (
+        patch("apps.core.views.ObjectStorage.put_private", return_value=stored),
+        patch(
+            "apps.core.views.ObjectReference.objects.create",
+            side_effect=IntegrityError("duplicate key"),
+        ),
+        patch("apps.core.views.ObjectStorage.delete") as mock_delete,
+    ):
+        response = api_client.post(
+            "/api/v1/storage/objects/",
+            {"bodyBase64": base64.b64encode(body).decode()},
+            format="json",
+        )
+        assert response.status_code == 409
+        assert response.data["code"] == "conflict"
+        mock_delete.assert_called_once_with("archive/test/rb")

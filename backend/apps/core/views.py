@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
+import re
 import uuid
 
 from django.conf import settings
@@ -16,18 +18,27 @@ from rest_framework.response import Response
 from rest_framework.serializers import CharField, Serializer
 from rest_framework.views import APIView
 
-from .exceptions import Conflict
+from .exceptions import Conflict, ServiceUnavailable
 from .iiif import IiifClient
 from .models import ObjectReference
 from .search import CatalogueIndex
 from .storage import ObjectStorage, ObjectStorageConflictError, ObjectStorageError
 
+logger = logging.getLogger("ilmdas.storage")
+
+SAFE_PREFIX_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+SAFE_KEY_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\./]+$")
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_BASE64_LENGTH = ((4 * MAX_UPLOAD_BYTES // 3) + 3) & ~3
+
 
 def generate_object_key(prefix: str = "archive") -> str:
     """Generate a server-side object key with date prefix and UUID."""
+    if not isinstance(prefix, str) or not SAFE_PREFIX_PATTERN.match(prefix):
+        prefix = "archive"
     date_path = timezone.now().strftime("%Y/%m/%d")
-    clean_prefix = prefix.strip("/") if prefix else "archive"
-    return f"{clean_prefix}/{date_path}/{uuid.uuid4().hex}"
+    return f"{prefix}/{date_path}/{uuid.uuid4().hex}"
 
 
 class ProbeSerializer(Serializer):
@@ -125,8 +136,16 @@ class ObjectUploadView(APIView):
 
     def post(self, request):
         encoded = request.data.get("bodyBase64", "")
-        if not encoded:
+        if not isinstance(encoded, str) or not encoded.strip():
             raise ValidationError({"bodyBase64": ["bodyBase64 is required."]})
+        if len(encoded) > MAX_BASE64_LENGTH:
+            raise ValidationError(
+                {
+                    "bodyBase64": [
+                        f"Payload exceeds maximum allowed size of {MAX_UPLOAD_BYTES // (1024 * 1024)}MB."
+                    ]
+                }
+            )
         try:
             body = base64.b64decode(encoded, validate=True)
         except (binascii.Error, ValueError) as exc:
@@ -135,8 +154,22 @@ class ObjectUploadView(APIView):
         object_key = request.data.get("objectKey", "")
         if isinstance(object_key, str):
             object_key = object_key.strip()
-        if not object_key:
-            prefix = request.data.get("prefix", "archive")
+        if object_key:
+            if (
+                ".." in object_key
+                or object_key.startswith("/")
+                or not SAFE_KEY_PATTERN.match(object_key)
+            ):
+                raise ValidationError(
+                    {
+                        "objectKey": [
+                            "Invalid objectKey. Path traversal characters ('..') and leading slashes are forbidden."
+                        ]
+                    }
+                )
+        else:
+            raw_prefix = request.data.get("prefix", "archive")
+            prefix = raw_prefix if isinstance(raw_prefix, str) else "archive"
             object_key = generate_object_key(prefix)
 
         # SEC-01: Check for existing key in database and storage before writing
@@ -151,7 +184,8 @@ class ObjectUploadView(APIView):
         except ObjectStorageConflictError as exc:
             raise Conflict(str(exc)) from exc
         except ObjectStorageError as exc:
-            raise RuntimeError("object storage is unavailable") from exc
+            logger.error("Object storage failure during upload: %s", exc)
+            raise ServiceUnavailable("Object storage is unavailable.") from exc
 
         try:
             with transaction.atomic():
