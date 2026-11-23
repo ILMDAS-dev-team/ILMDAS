@@ -51,7 +51,10 @@ class ObjectStorage:
     def exists(self, object_key: str) -> bool:
         if not object_key:
             return False
-        client = self._client()
+        try:
+            client = self._client()
+        except ObjectStorageError:
+            return False
         if not hasattr(client, "head_object"):
             return False
         try:

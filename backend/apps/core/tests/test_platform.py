@@ -666,7 +666,12 @@ def test_contract_probes_return_404_in_production(api_client, settings):
 
 @pytest.mark.django_db
 def test_anonymous_health_returns_only_overall_status(api_client):
-    response = api_client.get("/api/v1/health/")
+    with (
+        patch("apps.core.views.database_health", return_value={"ok": True}),
+        patch("apps.core.views.CatalogueIndex.health", return_value={"ok": True}),
+        patch("apps.core.views.ObjectStorage.health", return_value={"ok": True}),
+    ):
+        response = api_client.get("/api/v1/health/")
     assert response.status_code == 200
     assert response.data == {"status": "ok"}
     assert "checks" not in response.data
