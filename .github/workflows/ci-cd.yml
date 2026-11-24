@@ -27,7 +27,7 @@ jobs:
       - name: Mypy
         run: mypy apps config
       - name: Secret Scan
-        run: detect-secrets scan --baseline ../.secrets.baseline
+        run: detect-secrets scan --baseline .secrets.baseline
         working-directory: .
       - name: Python Dependency Audit
         run: pip-audit -r requirements/base.txt
