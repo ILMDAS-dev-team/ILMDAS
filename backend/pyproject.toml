@@ -4,11 +4,13 @@ target-version = "py312"
 src = ["apps", "config"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "S"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"config/settings/*.py" = ["F401", "F403", "F405"]
+"config/settings/*.py" = ["F401", "F403", "F405", "S105", "S106"]
+"apps/*/tests/*" = ["S101", "S105", "S106", "S603", "S310"]
+"**/tests/*" = ["S101", "S105", "S106", "S603", "S310"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
@@ -17,7 +19,7 @@ testpaths = ["apps"]
 markers = [
     "smoke: live stack smoke (compose must be up; skipped by default)",
 ]
-addopts = ["-m", "not smoke"]
+addopts = ["-m", "not smoke", "--ds=config.settings.test"]
 
 [tool.coverage.run]
 branch = true

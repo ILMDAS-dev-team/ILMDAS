@@ -9,7 +9,9 @@ from django.conf import settings
 
 
 def _default_get(url: str) -> dict:
-    with urlopen(url, timeout=3) as response:
+    if not url.startswith(("http://", "https://")):
+        raise ValueError(f"URL scheme not allowed: {url}")
+    with urlopen(url, timeout=3) as response:  # noqa: S310
         return json.loads(response.read().decode("utf-8"))
 
 
