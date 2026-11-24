@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.contrib.auth.hashers import identify_hasher
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -108,8 +109,23 @@ class User(AbstractUser):
         self.is_active = False
         self.save(update_fields=["status", "is_active", "updated_at"])
 
+    def clean(self) -> None:
+        """Validate that status belongs to approved lifecycle choices (FR-SEC-002)."""
+        super().clean()
+        if self.status not in UserAccountStatus.values:
+            raise ValidationError(
+                {
+                    "status": f"Invalid account status '{self.status}'. Must be one of: {list(UserAccountStatus.values)}."
+                }
+            )
+
     def save(self, *args, **kwargs) -> None:
-        """Ensure password is automatically hashed and is_active is synced with lifecycle status."""
+        """Ensure password is automatically hashed, status is restricted to lifecycle values, and is_active is synced."""
+        if self.status not in UserAccountStatus.values:
+            raise ValidationError(
+                f"Invalid account status '{self.status}'. Must be one of: {list(UserAccountStatus.values)}."
+            )
+
         if self.password:
             try:
                 identify_hasher(self.password)

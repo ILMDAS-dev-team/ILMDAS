@@ -37,6 +37,32 @@ class AuditRecord(models.Model):
         return f"[{self.timestamp.isoformat()}] {actor} - {self.action} ({self.object_type}:{self.object_id})"
 
 
+def sanitize_audit_details(data: Any) -> Any:
+    """Recursively scrub sensitive fields (passwords, tokens, secrets, credentials, api keys)."""
+    if isinstance(data, dict):
+        sanitized = {}
+        for k, v in data.items():
+            lower_k = str(k).lower()
+            if any(
+                sensitive in lower_k
+                for sensitive in (
+                    "password",
+                    "secret",
+                    "token",
+                    "credential",
+                    "api_key",
+                    "private_key",
+                )
+            ):
+                sanitized[k] = "[REDACTED]"
+            else:
+                sanitized[k] = sanitize_audit_details(v)
+        return sanitized
+    if isinstance(data, list):
+        return [sanitize_audit_details(item) for item in data]
+    return data
+
+
 def record_audit_event(
     action: str,
     actor: Any = None,
@@ -68,6 +94,8 @@ def record_audit_event(
         elif isinstance(actor, str):
             actor_name = actor
 
+    safe_details = sanitize_audit_details(details) if details else {}
+
     return AuditRecord.objects.create(
         actor=actor_obj,
         actor_username=actor_name,
@@ -76,5 +104,5 @@ def record_audit_event(
         object_id=str(object_id),
         ip_address=ip_address,
         correlation_id=correlation_id,
-        details=details or {},
+        details=safe_details,
     )

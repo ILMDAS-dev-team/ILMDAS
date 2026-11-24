@@ -38,3 +38,22 @@ def test_audit_record_creation_and_fields():
     assert "auditor" in str(record)
     assert "test.action" in str(record)
     assert AuditRecord.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_audit_record_sanitizes_passwords_and_secrets():
+    record = record_audit_event(
+        action="auth.password_change",
+        actor="admin",
+        object_type="user",
+        object_id="1",
+        details={
+            "username": "librarian_01",
+            "password": "Test@123456!",
+            "nested": {"token": "secret_token_123", "normal": "ok"},
+        },
+    )
+    assert record.details["password"] == "[REDACTED]"
+    assert record.details["nested"]["token"] == "[REDACTED]"
+    assert record.details["nested"]["normal"] == "ok"
+    assert "Test@123456!" not in str(record.details)
