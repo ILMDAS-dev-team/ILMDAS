@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation"
 import type { ReactNode } from "react"
 import { LanguageSlot } from "@/components/LanguageSlot"
+import { verifyStaffSession } from "@/lib/auth"
 
 const links = [
   { href: "/staff", label: "Home" },
@@ -13,7 +15,12 @@ const links = [
   { href: "/staff/status", label: "IIIF status" },
 ]
 
-export default function StaffLayout({ children }: { children: ReactNode }) {
+export default async function StaffLayout({ children }: { children: ReactNode }) {
+  const isAuthenticated = await verifyStaffSession()
+  if (!isAuthenticated) {
+    redirect("/sign-in")
+  }
+
   return (
     <div className="shell" data-shell="staff">
       <header>

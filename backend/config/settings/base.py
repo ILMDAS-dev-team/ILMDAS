@@ -30,8 +30,38 @@ TIME_ZONE = "Africa/Addis_Ababa"
 USE_I18N = True
 USE_TZ = True
 
+AUTH_USER_MODEL = "accounts.User"
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {
+            "min_length": 12,
+        },
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+    },
+]
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = (
+    20 * 1024 * 1024
+)  # 20 MB ceiling to accommodate base64 payload overhead (SEC-09)
+
 ELASTICSEARCH_URL = os.environ.get("ELASTICSEARCH_URL", "")
 ELASTICSEARCH_INDEX = os.environ.get("ELASTICSEARCH_INDEX", "ilmdas-catalogue")
+ELASTICSEARCH_API_KEY = os.environ.get("ELASTICSEARCH_API_KEY", "")
+ELASTICSEARCH_CA_CERTS = os.environ.get("ELASTICSEARCH_CA_CERTS", "")
+ELASTICSEARCH_VERIFY_CERTS = os.environ.get(
+    "ELASTICSEARCH_VERIFY_CERTS", "true"
+).strip().lower() in ("true", "1", "yes")
+
 S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "")
 S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID", "")
 S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY", "")
@@ -49,14 +79,14 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "corsheaders",
-    "apps.core",
     "apps.accounts",
+    "apps.audit",
+    "apps.core",
     "apps.catalogue",
     "apps.circulation",
     "apps.archive",
     "apps.publishing",
     "apps.payments",
-    "apps.audit",
 ]
 
 MIDDLEWARE = [
@@ -97,11 +127,20 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.core.exceptions.api_exception_handler",
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.BasicAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/day",
+        "user": "1000/day",
+        "login": "5/minute",
+        "upload": "20/minute",
+    },
 }
 
 CORS_ALLOWED_ORIGINS = [

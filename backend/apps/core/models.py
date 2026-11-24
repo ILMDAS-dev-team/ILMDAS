@@ -8,6 +8,7 @@ class ObjectReference(models.Model):
     reference = models.CharField(max_length=1024)
     checksum_sha256 = models.CharField(max_length=64)
     content_type = models.CharField(max_length=255, blank=True)
+    scan_status = models.CharField(max_length=32, default="pending", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

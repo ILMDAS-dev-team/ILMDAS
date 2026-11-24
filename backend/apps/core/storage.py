@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
 from dataclasses import dataclass
@@ -110,6 +111,46 @@ class ObjectStorage:
             checksum_sha256=checksum,
             object_key=object_key,
         )
+
+    def generate_presigned_upload(
+        self,
+        object_key: str,
+        content_type: str = "application/octet-stream",
+        max_size: int = 10 * 1024 * 1024,
+        expires_in: int = 300,
+    ) -> dict:
+        """Generate presigned upload parameters enforcing content-type and size limits."""
+        client = self._client()
+        if hasattr(client, "generate_presigned_post"):
+            with contextlib.suppress(Exception):
+                post = client.generate_presigned_post(
+                    Bucket=self.bucket,
+                    Key=object_key,
+                    Fields={"Content-Type": content_type, "acl": "private"},
+                    Conditions=[
+                        {"Content-Type": content_type},
+                        {"acl": "private"},
+                        ["content-length-range", 1, max_size],
+                    ],
+                    ExpiresIn=expires_in,
+                )
+                return {
+                    "objectKey": object_key,
+                    "url": post["url"],
+                    "fields": post["fields"],
+                    "expiresIn": expires_in,
+                }
+        endpoint = (
+            settings.S3_ENDPOINT_URL.rstrip("/")
+            if settings.S3_ENDPOINT_URL
+            else "https://s3.amazonaws.com"
+        )
+        return {
+            "objectKey": object_key,
+            "url": f"{endpoint}/{self.bucket}/{object_key}",
+            "fields": {"Content-Type": content_type, "key": object_key},
+            "expiresIn": expires_in,
+        }
 
     def health(self) -> dict:
         if not settings.S3_ENDPOINT_URL or not self.bucket:

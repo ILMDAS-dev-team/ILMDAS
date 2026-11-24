@@ -11,8 +11,14 @@ test("public page loads without staff links", async ({ page }) => {
   await expect(page.locator('a[href="/staff"]')).toHaveCount(0)
 })
 
-test("staff page shows the catalogue place", async ({ page }) => {
-  const response = await page.goto("/staff")
-  expect(response?.ok()).toBeTruthy()
-  await expect(page.getByRole("link", { name: "Catalogue" })).toBeVisible()
+test("staff page redirects anonymous visitor to sign-in", async ({ page }) => {
+  await page.goto("/staff")
+  await expect(page).toHaveURL(/.*\/sign-in.*/)
+  await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible()
+})
+
+test("staff sub-route redirects anonymous visitor to sign-in", async ({ page }) => {
+  await page.goto("/staff/catalogue")
+  await expect(page).toHaveURL(/.*\/sign-in.*/)
+  await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible()
 })
