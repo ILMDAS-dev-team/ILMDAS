@@ -1,4 +1,4 @@
-import { buildHeaders, createCorrelationId } from "@/lib/api"
+import { buildHeaders, createCorrelationId, getCookie } from "@/lib/api"
 
 test("the API client attaches a correlation identifier", () => {
   const headers = buildHeaders({ "Content-Type": "application/json" }, "cid-test")
@@ -12,4 +12,8 @@ test("a correlation identifier is generated when the caller does not pass one", 
   expect(typeof headers["X-Correlation-ID"]).toBe("string")
   expect(headers["X-Correlation-ID"].length > 0).toBe(true)
   expect(createCorrelationId().length > 0).toBe(true)
+})
+
+test("getCookie returns null when document is unavailable", () => {
+  expect(getCookie("csrftoken")).toBeNull()
 })
