@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from django.contrib.auth import authenticate, login, logout
+from django.middleware.csrf import get_token
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -12,6 +15,17 @@ from apps.audit.models import record_audit_event
 
 from .serializers import LoginSerializer, UserProfileSerializer
 from .throttling import LoginRateThrottle
+
+
+class CsrfCookieView(APIView):
+    """Issue a CSRF cookie for browser clients before login."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    @method_decorator(ensure_csrf_cookie)
+    def get(self, request):
+        return Response({"csrfToken": get_token(request)})
 
 
 class LoginView(APIView):
@@ -33,7 +47,7 @@ class LoginView(APIView):
                 object_id=username,
                 request=request,
             )
-            raise AuthenticationFailed("Invalid username or password.")
+            raise AuthenticationFailed("Authentication failed.")
 
         login(request, user)
         record_audit_event(
@@ -43,7 +57,9 @@ class LoginView(APIView):
             object_id=str(user.id),
             request=request,
         )
-        return Response(UserProfileSerializer(user).data)
+        data = UserProfileSerializer(user).data
+        data["authenticated"] = True
+        return Response(data)
 
 
 class LogoutView(APIView):
@@ -58,11 +74,13 @@ class LogoutView(APIView):
             request=request,
         )
         logout(request)
-        return Response({"status": "logged_out"})
+        return Response({"status": "logged_out", "authenticated": False})
 
 
 class SessionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserProfileSerializer(request.user).data)
+        data = UserProfileSerializer(request.user).data
+        data["authenticated"] = True
+        return Response(data)
