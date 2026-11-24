@@ -32,6 +32,7 @@ from apps.core.views import MAX_BASE64_LENGTH, generate_object_key
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 REPO_DIR = BACKEND_DIR.parent
+DUMMY_PASSWORD = "local-only"  # pragma: allowlist secret
 APP_NAMES = [
     "core",
     "accounts",
@@ -150,7 +151,7 @@ def test_private_upload_stores_a_reference_and_checksum():
 
 @pytest.mark.django_db
 def test_object_upload_is_not_anonymously_readable(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="staff", password="local-only")
+    user = django_user_model.objects.create_user(username="staff", password=DUMMY_PASSWORD)
     body = b"page"
     stored = StoredObject(
         reference="s3://ilmdas-files/manuscripts/1",
@@ -182,7 +183,7 @@ def test_object_upload_is_not_anonymously_readable(api_client, django_user_model
     ],
 )
 def test_health_fails_when_a_store_is_unreachable(api_client, django_user_model, target, check):
-    user = django_user_model.objects.create_user(username=f"staff_{check}", password="local-only")
+    user = django_user_model.objects.create_user(username=f"staff_{check}", password=DUMMY_PASSWORD)
     api_client.force_authenticate(user)
     with patch(target, return_value={"ok": False, "detail": "unreachable"}):
         response = api_client.get("/api/v1/health/")
@@ -310,7 +311,7 @@ def test_validation_probe_accepts_valid_payload(api_client):
 
 @pytest.mark.django_db
 def test_session_probe_reports_authenticated_user(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="reader", password="local-only")
+    user = django_user_model.objects.create_user(username="reader", password=DUMMY_PASSWORD)
     api_client.force_authenticate(user)
     response = api_client.get("/api/v1/contract/session/")
     assert response.status_code == 200
@@ -338,7 +339,7 @@ def test_error_probe_kinds(api_client, kind, status, code):
 
 @pytest.mark.django_db
 def test_object_upload_rejects_missing_and_invalid_payload(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="uploader", password="local-only")
+    user = django_user_model.objects.create_user(username="uploader", password=DUMMY_PASSWORD)
     api_client.force_authenticate(user)
     missing = api_client.post("/api/v1/storage/objects/", {}, format="json")
     assert missing.status_code == 400
@@ -356,7 +357,7 @@ def test_object_upload_rejects_missing_and_invalid_payload(api_client, django_us
 def test_object_upload_maps_storage_failure(api_client, django_user_model):
     from apps.core.storage import ObjectStorageError
 
-    user = django_user_model.objects.create_user(username="uploader2", password="local-only")
+    user = django_user_model.objects.create_user(username="uploader2", password=DUMMY_PASSWORD)
     api_client.force_authenticate(user)
     with patch(
         "apps.core.views.ObjectStorage.put_private",
@@ -373,7 +374,7 @@ def test_object_upload_maps_storage_failure(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_object_detail_and_not_found(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="viewer", password="local-only")
+    user = django_user_model.objects.create_user(username="viewer", password=DUMMY_PASSWORD)
     record = ObjectReference.objects.create(
         object_key="manuscripts/detail",
         reference="s3://ilmdas-files/manuscripts/detail",
@@ -390,7 +391,7 @@ def test_object_detail_and_not_found(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_iiif_status_endpoint(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="iiif", password="local-only")
+    user = django_user_model.objects.create_user(username="iiif", password=DUMMY_PASSWORD)
     api_client.force_authenticate(user)
     with patch(
         "apps.core.views.IiifClient.configuration_status",
@@ -408,7 +409,7 @@ def test_iiif_status_endpoint(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_catalogue_index_endpoints(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="search", password="local-only")
+    user = django_user_model.objects.create_user(username="search", password=DUMMY_PASSWORD)
     api_client.force_authenticate(user)
     with (
         patch("apps.core.views.CatalogueIndex.rebuild"),
@@ -550,7 +551,7 @@ def test_object_reference_str():
 def test_upload_existing_object_key_returns_conflict_and_preserves_object(
     api_client, django_user_model
 ):
-    user = django_user_model.objects.create_user(username="archivist", password="local-only")
+    user = django_user_model.objects.create_user(username="archivist", password=DUMMY_PASSWORD)
     api_client.force_authenticate(user)
     initial_record = ObjectReference.objects.create(
         object_key="archive/existing/file",
@@ -576,7 +577,7 @@ def test_upload_existing_object_key_returns_conflict_and_preserves_object(
 
 @pytest.mark.django_db
 def test_upload_without_object_key_generates_server_key(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="uploader-auto", password="local-only")
+    user = django_user_model.objects.create_user(username="uploader-auto", password=DUMMY_PASSWORD)
     api_client.force_authenticate(user)
     body = b"generated-content"
     stored = StoredObject(
@@ -690,7 +691,7 @@ def test_anonymous_health_returns_only_overall_status(api_client):
 @pytest.mark.django_db
 def test_upload_rejects_path_traversal_keys(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="traversal_user", password="local-only", role=Role.ARCHIVIST
+        username="traversal_user", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
     )
     api_client.force_authenticate(user)
     body_b64 = base64.b64encode(b"%PDF-1.4 safe-bytes").decode()
@@ -720,7 +721,7 @@ def test_generate_object_key_sanitizes_unsafe_prefix():
 @pytest.mark.django_db
 def test_upload_rejects_oversized_payload(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="large_user", password="local-only", role=Role.ARCHIVIST
+        username="large_user", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
     )
     api_client.force_authenticate(user)
     oversized_b64 = "A" * (MAX_BASE64_LENGTH + 10)
@@ -737,7 +738,7 @@ def test_upload_rejects_oversized_payload(api_client, django_user_model):
 @pytest.mark.django_db
 def test_upload_storage_unavailability_returns_503(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="s3_down_user", password="local-only", role=Role.ARCHIVIST
+        username="s3_down_user", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
     )
     api_client.force_authenticate(user)
     body_b64 = base64.b64encode(b"%PDF-1.4 some-data").decode()
@@ -781,7 +782,7 @@ def test_object_storage_delete_graceful_logging():
 @pytest.mark.django_db
 def test_upload_rolls_back_storage_on_db_integrity_error(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="rollback_user", password="local-only", role=Role.ARCHIVIST
+        username="rollback_user", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
     )
     api_client.force_authenticate(user)
     body = b"%PDF-1.4 data-for-rollback"
@@ -814,7 +815,7 @@ def test_upload_rolls_back_storage_on_db_integrity_error(api_client, django_user
 @pytest.mark.django_db
 def test_member_receives_403_on_upload(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="regular_member", password="local-only", role=Role.MEMBER
+        username="regular_member", password=DUMMY_PASSWORD, role=Role.MEMBER
     )
     api_client.force_authenticate(user)
     response = api_client.post(
@@ -834,7 +835,7 @@ def test_member_receives_403_on_object_detail(api_client, django_user_model):
         checksum_sha256="abc",
     )
     user = django_user_model.objects.create_user(
-        username="regular_member2", password="local-only", role=Role.MEMBER
+        username="regular_member2", password=DUMMY_PASSWORD, role=Role.MEMBER
     )
     api_client.force_authenticate(user)
     response = api_client.get(f"/api/v1/storage/objects/{record.id}/")
@@ -845,7 +846,7 @@ def test_member_receives_403_on_object_detail(api_client, django_user_model):
 @pytest.mark.django_db
 def test_member_receives_403_on_index_rebuild_and_delete(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="regular_member3", password="local-only", role=Role.MEMBER
+        username="regular_member3", password=DUMMY_PASSWORD, role=Role.MEMBER
     )
     api_client.force_authenticate(user)
     rebuild_res = api_client.post("/api/v1/search/catalogue-index/")
@@ -859,7 +860,7 @@ def test_member_receives_403_on_index_rebuild_and_delete(api_client, django_user
 @pytest.mark.django_db
 def test_staff_receives_403_on_index_rebuild(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="staff_member", password="local-only", role=Role.LIBRARY_STAFF
+        username="staff_member", password=DUMMY_PASSWORD, role=Role.LIBRARY_STAFF
     )
     api_client.force_authenticate(user)
     response = api_client.post("/api/v1/search/catalogue-index/")
@@ -870,7 +871,7 @@ def test_staff_receives_403_on_index_rebuild(api_client, django_user_model):
 @pytest.mark.django_db
 def test_upload_content_type_magic_bytes_check(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="archivist_magic", password="local-only", role=Role.ARCHIVIST
+        username="archivist_magic", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
     )
     api_client.force_authenticate(user)
 
@@ -905,7 +906,7 @@ def test_upload_content_type_magic_bytes_check(api_client, django_user_model):
 @pytest.mark.django_db
 def test_upload_size_limit_enforced(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="archivist_size", password="local-only", role=Role.ARCHIVIST
+        username="archivist_size", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
     )
     api_client.force_authenticate(user)
     large_payload = b"%PDF-" + b"0" * (MAX_UPLOAD_SIZE + 1)
@@ -922,7 +923,7 @@ def test_upload_size_limit_enforced(api_client, django_user_model):
 @pytest.mark.django_db
 def test_upload_malware_scan_rejects_eicar(api_client, django_user_model):
     user = django_user_model.objects.create_user(
-        username="archivist_malware", password="local-only", role=Role.ARCHIVIST
+        username="archivist_malware", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
     )
     api_client.force_authenticate(user)
     eicar_bytes = b"%PDF-" + EICAR_SIGNATURE
@@ -939,10 +940,10 @@ def test_upload_malware_scan_rejects_eicar(api_client, django_user_model):
 @pytest.mark.django_db
 def test_presigned_upload_endpoint(api_client, django_user_model):
     archivist = django_user_model.objects.create_user(
-        username="archivist_presign", password="local-only", role=Role.ARCHIVIST
+        username="archivist_presign", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
     )
     member = django_user_model.objects.create_user(
-        username="member_presign", password="local-only", role=Role.MEMBER
+        username="member_presign", password=DUMMY_PASSWORD, role=Role.MEMBER
     )
 
     api_client.force_authenticate(member)
@@ -984,7 +985,7 @@ def test_presigned_upload_endpoint(api_client, django_user_model):
 @pytest.mark.django_db
 def test_sensitive_actions_write_audit_record(api_client, django_user_model):
     admin = django_user_model.objects.create_user(
-        username="admin_audit", password="local-only", role=Role.ADMINISTRATOR
+        username="admin_audit", password=DUMMY_PASSWORD, role=Role.ADMINISTRATOR
     )
     api_client.force_authenticate(admin)
     initial_count = AuditRecord.objects.count()
@@ -1046,6 +1047,6 @@ def test_ci_workflow_has_security_gates_and_pinned_shas():
     assert len(action_uses) > 0
     for action, ref in action_uses:
         ref = ref.strip().split()[0]
-        assert len(ref) == 40 and all(c in "0123456789abcdef" for c in ref.lower()), (
-            f"Action {action} is not pinned to commit SHA: {ref}"
-        )
+        assert len(ref) == 40 and all(
+            c in "0123456789abcdef" for c in ref.lower()
+        ), f"Action {action} is not pinned to commit SHA: {ref}"
