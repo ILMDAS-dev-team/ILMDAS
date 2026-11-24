@@ -1,7 +1,12 @@
-import type { ReactNode } from "react"
-import { LanguageSlot } from "@/components/LanguageSlot"
+"use client"
 
-const links = [
+import Link from "next/link"
+import { useEffect, useState, type ReactNode } from "react"
+import { useAuth } from "@/context/AuthContext"
+import { LanguageSlot } from "@/components/LanguageSlot"
+import { isSystemAdministrator, isStaff } from "@/lib/roles"
+
+const baseLinks = [
   { href: "/staff", label: "Home" },
   { href: "/staff/catalogue", label: "Catalogue" },
   { href: "/staff/circulation", label: "Circulation" },
@@ -14,15 +19,44 @@ const links = [
 ]
 
 export default function StaffLayout({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  const [links, setLinks] = useState(baseLinks)
+
+  useEffect(() => {
+    if (loading || !user) return
+    const admin = isSystemAdministrator(user)
+    const staff = isStaff(user)
+    const filtered = baseLinks.filter((link) => {
+      if (link.href === "/staff/administration") return admin
+      return staff
+    })
+    setLinks(filtered)
+  }, [loading, user])
+
+  if (loading || !user) {
+    return (
+      <div className="shell" data-shell="staff">
+        <header>
+          <p>ILMDAS staff</p>
+          <nav className="nav" aria-label="Staff">
+            <Link href="/staff">Home</Link>
+          </nav>
+          <LanguageSlot />
+        </header>
+        <main>{children}</main>
+      </div>
+    )
+  }
+
   return (
     <div className="shell" data-shell="staff">
       <header>
         <p>ILMDAS staff</p>
         <nav className="nav" aria-label="Staff">
           {links.map((link) => (
-            <a key={link.href} href={link.href}>
+            <Link key={link.href} href={link.href}>
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
         <LanguageSlot />

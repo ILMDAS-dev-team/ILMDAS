@@ -17,6 +17,8 @@ from django.core.exceptions import ImproperlyConfigured
 from django.core.management import call_command
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied, Throttled, ValidationError
 
+from apps.accounts.constants import ROLE_SYSTEM_ADMINISTRATOR
+from apps.accounts.models import Role, UserRole, seed_roles
 from apps.core.exceptions import Conflict, api_exception_handler
 from apps.core.iiif import IiifClient
 from apps.core.models import ObjectReference
@@ -143,7 +145,10 @@ def test_private_upload_stores_a_reference_and_checksum():
 
 @pytest.mark.django_db
 def test_object_upload_is_not_anonymously_readable(api_client, django_user_model):
+    seed_roles()
     user = django_user_model.objects.create_user(username="staff", password="local-only")
+    admin_role = Role.objects.get(code=ROLE_SYSTEM_ADMINISTRATOR)
+    UserRole.objects.create(user=user, role=admin_role)
     body = b"page"
     stored = StoredObject(
         reference="s3://ilmdas-files/manuscripts/1",
@@ -318,7 +323,10 @@ def test_error_probe_kinds(api_client, kind, status, code):
 
 @pytest.mark.django_db
 def test_object_upload_rejects_missing_and_invalid_payload(api_client, django_user_model):
+    seed_roles()
     user = django_user_model.objects.create_user(username="uploader", password="local-only")
+    admin_role = Role.objects.get(code=ROLE_SYSTEM_ADMINISTRATOR)
+    UserRole.objects.create(user=user, role=admin_role)
     api_client.force_authenticate(user)
     missing = api_client.post("/api/v1/storage/objects/", {}, format="json")
     assert missing.status_code == 400
@@ -336,7 +344,10 @@ def test_object_upload_rejects_missing_and_invalid_payload(api_client, django_us
 def test_object_upload_maps_storage_failure(api_client, django_user_model):
     from apps.core.storage import ObjectStorageError
 
+    seed_roles()
     user = django_user_model.objects.create_user(username="uploader2", password="local-only")
+    admin_role = Role.objects.get(code=ROLE_SYSTEM_ADMINISTRATOR)
+    UserRole.objects.create(user=user, role=admin_role)
     api_client.force_authenticate(user)
     with patch(
         "apps.core.views.ObjectStorage.put_private",
@@ -388,7 +399,10 @@ def test_iiif_status_endpoint(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_catalogue_index_endpoints(api_client, django_user_model):
+    seed_roles()
     user = django_user_model.objects.create_user(username="search", password="local-only")
+    admin_role = Role.objects.get(code=ROLE_SYSTEM_ADMINISTRATOR)
+    UserRole.objects.create(user=user, role=admin_role)
     api_client.force_authenticate(user)
     with (
         patch("apps.core.views.CatalogueIndex.rebuild"),

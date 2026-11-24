@@ -13,6 +13,10 @@ from rest_framework.response import Response
 from rest_framework.serializers import CharField, Serializer
 from rest_framework.views import APIView
 
+from apps.accounts.constants import ROLE_SYSTEM_ADMINISTRATOR
+from apps.accounts.permissions import HasRole
+from apps.accounts.serializers import UserSummarySerializer
+
 from .exceptions import Conflict
 from .iiif import IiifClient
 from .models import ObjectReference
@@ -68,7 +72,8 @@ class SessionProbeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"authenticated": True})
+        serializer = UserSummarySerializer(request.user)
+        return Response({"authenticated": True, "user": serializer.data})
 
 
 class ErrorProbeView(APIView):
@@ -95,7 +100,8 @@ class ErrorProbeView(APIView):
 
 
 class ObjectUploadView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRole]
+    required_role = ROLE_SYSTEM_ADMINISTRATOR
 
     def post(self, request):
         object_key = request.data.get("objectKey", "")
@@ -152,7 +158,8 @@ class IiifStatusView(APIView):
 
 
 class CatalogueIndexView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRole]
+    required_role = ROLE_SYSTEM_ADMINISTRATOR
 
     def post(self, request):
         CatalogueIndex().rebuild()

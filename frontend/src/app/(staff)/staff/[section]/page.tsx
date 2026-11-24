@@ -1,8 +1,12 @@
+"use client"
+
+import { RequireRole } from "@/components/RequireRole"
+
 export default function StaffSectionPage({ params }: { params: Promise<{ section: string }> }) {
   return (
-    <section>
+    <RequireRole requireStaff>
       <StaffSection params={params} />
-    </section>
+    </RequireRole>
   )
 }
 
