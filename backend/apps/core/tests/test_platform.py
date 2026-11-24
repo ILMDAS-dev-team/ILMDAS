@@ -151,7 +151,9 @@ def test_private_upload_stores_a_reference_and_checksum():
 
 @pytest.mark.django_db
 def test_object_upload_is_not_anonymously_readable(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="staff", password=DUMMY_PASSWORD)
+    user = django_user_model.objects.create_user(
+        username="staff", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
+    )
     body = b"page"
     stored = StoredObject(
         reference="s3://ilmdas-files/manuscripts/1",
@@ -339,7 +341,9 @@ def test_error_probe_kinds(api_client, kind, status, code):
 
 @pytest.mark.django_db
 def test_object_upload_rejects_missing_and_invalid_payload(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="uploader", password=DUMMY_PASSWORD)
+    user = django_user_model.objects.create_user(
+        username="uploader", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
+    )
     api_client.force_authenticate(user)
     missing = api_client.post("/api/v1/storage/objects/", {}, format="json")
     assert missing.status_code == 400
@@ -357,7 +361,9 @@ def test_object_upload_rejects_missing_and_invalid_payload(api_client, django_us
 def test_object_upload_maps_storage_failure(api_client, django_user_model):
     from apps.core.storage import ObjectStorageError
 
-    user = django_user_model.objects.create_user(username="uploader2", password=DUMMY_PASSWORD)
+    user = django_user_model.objects.create_user(
+        username="uploader2", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
+    )
     api_client.force_authenticate(user)
     with patch(
         "apps.core.views.ObjectStorage.put_private",
@@ -374,7 +380,9 @@ def test_object_upload_maps_storage_failure(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_object_detail_and_not_found(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="viewer", password=DUMMY_PASSWORD)
+    user = django_user_model.objects.create_user(
+        username="viewer", password=DUMMY_PASSWORD, role=Role.LIBRARY_STAFF
+    )
     record = ObjectReference.objects.create(
         object_key="manuscripts/detail",
         reference="s3://ilmdas-files/manuscripts/detail",
@@ -391,7 +399,9 @@ def test_object_detail_and_not_found(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_iiif_status_endpoint(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="iiif", password=DUMMY_PASSWORD)
+    user = django_user_model.objects.create_user(
+        username="iiif", password=DUMMY_PASSWORD, role=Role.LIBRARY_STAFF
+    )
     api_client.force_authenticate(user)
     with patch(
         "apps.core.views.IiifClient.configuration_status",
@@ -409,7 +419,9 @@ def test_iiif_status_endpoint(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_catalogue_index_endpoints(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="search", password=DUMMY_PASSWORD)
+    user = django_user_model.objects.create_user(
+        username="search", password=DUMMY_PASSWORD, role=Role.ADMINISTRATOR
+    )
     api_client.force_authenticate(user)
     with (
         patch("apps.core.views.CatalogueIndex.rebuild"),
@@ -551,7 +563,9 @@ def test_object_reference_str():
 def test_upload_existing_object_key_returns_conflict_and_preserves_object(
     api_client, django_user_model
 ):
-    user = django_user_model.objects.create_user(username="archivist", password=DUMMY_PASSWORD)
+    user = django_user_model.objects.create_user(
+        username="archivist", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
+    )
     api_client.force_authenticate(user)
     initial_record = ObjectReference.objects.create(
         object_key="archive/existing/file",
@@ -577,7 +591,9 @@ def test_upload_existing_object_key_returns_conflict_and_preserves_object(
 
 @pytest.mark.django_db
 def test_upload_without_object_key_generates_server_key(api_client, django_user_model):
-    user = django_user_model.objects.create_user(username="uploader-auto", password=DUMMY_PASSWORD)
+    user = django_user_model.objects.create_user(
+        username="uploader-auto", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
+    )
     api_client.force_authenticate(user)
     body = b"generated-content"
     stored = StoredObject(

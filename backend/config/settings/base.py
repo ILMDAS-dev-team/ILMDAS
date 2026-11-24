@@ -50,7 +50,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB explicit upload limit (SEC-09)
+DATA_UPLOAD_MAX_MEMORY_SIZE = (
+    20 * 1024 * 1024
+)  # 20 MB ceiling to accommodate base64 payload overhead (SEC-09)
 
 ELASTICSEARCH_URL = os.environ.get("ELASTICSEARCH_URL", "")
 ELASTICSEARCH_INDEX = os.environ.get("ELASTICSEARCH_INDEX", "ilmdas-catalogue")
