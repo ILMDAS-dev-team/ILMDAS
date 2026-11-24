@@ -1024,11 +1024,12 @@ def test_sensitive_actions_write_audit_record(api_client, django_user_model):
         object_key="archive/audit",
     )
     with patch("apps.core.views.ObjectStorage.put_private", return_value=stored):
-        api_client.post(
+        upload_resp = api_client.post(
             "/api/v1/storage/objects/",
             {"bodyBase64": base64.b64encode(body).decode()},
             format="json",
         )
+    assert upload_resp.status_code == 201
     assert AuditRecord.objects.count() == initial_count + 2
     upload_audit = AuditRecord.objects.latest("timestamp")
     assert upload_audit.action == "storage.upload"

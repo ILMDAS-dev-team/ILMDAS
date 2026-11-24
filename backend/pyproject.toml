@@ -19,7 +19,7 @@ testpaths = ["apps"]
 markers = [
     "smoke: live stack smoke (compose must be up; skipped by default)",
 ]
-addopts = ["-m", "not smoke"]
+addopts = ["-m", "not smoke", "--ds=config.settings.test"]
 
 [tool.coverage.run]
 branch = true

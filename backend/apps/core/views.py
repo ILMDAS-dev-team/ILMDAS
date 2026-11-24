@@ -149,7 +149,7 @@ class ObjectUploadView(APIView):
             raise ValidationError(
                 {
                     "bodyBase64": [
-                        f"Payload exceeds maximum allowed size of {MAX_UPLOAD_BYTES // (1024 * 1024)}MB."
+                        f"Payload exceeds maximum allowed limit of {MAX_UPLOAD_BYTES // (1024 * 1024)}MB."
                     ]
                 }
             )
