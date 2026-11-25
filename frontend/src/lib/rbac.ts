@@ -37,7 +37,7 @@ export async function fetchUsers(): Promise<UserSummary[]> {
 }
 
 export async function fetchCurrentUser(): Promise<AuthUser> {
-  const { response } = await apiFetch("/api/v1/contract/session/")
+  const { response } = await apiFetch("/api/v1/auth/session/")
   if (!response.ok) throw new Error(`Failed to fetch session: ${response.status}`)
   const body = (await response.json()) as { authenticated: boolean; user: AuthUser }
   return body.user
