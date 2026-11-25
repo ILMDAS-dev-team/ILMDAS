@@ -6,7 +6,9 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     initial = True
 
-    dependencies = []
+    dependencies = [
+        ("accounts", "0001_initial"),
+    ]
 
     operations = [
         migrations.CreateModel(
@@ -22,6 +24,7 @@ class Migration(migrations.Migration):
                 ("reference", models.CharField(max_length=1024)),
                 ("checksum_sha256", models.CharField(max_length=64)),
                 ("content_type", models.CharField(blank=True, max_length=255)),
+                ("scan_status", models.CharField(blank=True, default="pending", max_length=32)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
             ],
             options={"ordering": ["-created_at"]},

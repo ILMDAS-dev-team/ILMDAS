@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import logging
 from dataclasses import dataclass
 
 import boto3
 from botocore.client import Config
+from botocore.exceptions import ClientError
 from django.conf import settings
+
+logger = logging.getLogger("ilmdas.storage")
 
 
 class ObjectStorageError(RuntimeError):
+    pass
+
+
+class ObjectStorageConflictError(ObjectStorageError):
     pass
 
 
@@ -40,9 +49,55 @@ class ObjectStorage:
             config=Config(signature_version="s3v4"),
         )
 
+    def exists(self, object_key: str) -> bool:
+        if not object_key:
+            return False
+        try:
+            client = self._client()
+        except ObjectStorageError:
+            return False
+        if not hasattr(client, "head_object"):
+            return False
+        try:
+            client.head_object(Bucket=self.bucket, Key=object_key)
+            return True
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code", ""))
+            if code in ("404", "NoSuchKey", "NotFound"):
+                return False
+            logger.error("S3 head_object failed unexpectedly for key %s: %s", object_key, exc)
+            raise ObjectStorageError(f"Storage existence check failed: {exc}") from exc
+        except Exception as exc:
+            if isinstance(exc, ObjectStorageError):
+                raise
+            logger.error("Unexpected error checking storage key %s: %s", object_key, exc)
+            raise ObjectStorageError(f"Storage existence check failed: {exc}") from exc
+
+    def delete(self, object_key: str) -> None:
+        if not object_key:
+            return
+        try:
+            client = self._client()
+        except ObjectStorageError as exc:
+            logger.warning("Could not obtain S3 client to delete %s: %s", object_key, exc)
+            return
+        if hasattr(client, "delete_object"):
+            try:
+                client.delete_object(Bucket=self.bucket, Key=object_key)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to delete storage object '%s' during cleanup: %s",
+                    object_key,
+                    exc,
+                )
+
     def put_private(
         self, object_key: str, body: bytes, content_type: str = "application/octet-stream"
     ) -> StoredObject:
+        if self.exists(object_key):
+            raise ObjectStorageConflictError(
+                f"Object with key '{object_key}' already exists in storage."
+            )
         checksum = hashlib.sha256(body).hexdigest()
         self._client().put_object(
             Bucket=self.bucket,
@@ -56,6 +111,46 @@ class ObjectStorage:
             checksum_sha256=checksum,
             object_key=object_key,
         )
+
+    def generate_presigned_upload(
+        self,
+        object_key: str,
+        content_type: str = "application/octet-stream",
+        max_size: int = 10 * 1024 * 1024,
+        expires_in: int = 300,
+    ) -> dict:
+        """Generate presigned upload parameters enforcing content-type and size limits."""
+        client = self._client()
+        if hasattr(client, "generate_presigned_post"):
+            with contextlib.suppress(Exception):
+                post = client.generate_presigned_post(
+                    Bucket=self.bucket,
+                    Key=object_key,
+                    Fields={"Content-Type": content_type, "acl": "private"},
+                    Conditions=[
+                        {"Content-Type": content_type},
+                        {"acl": "private"},
+                        ["content-length-range", 1, max_size],
+                    ],
+                    ExpiresIn=expires_in,
+                )
+                return {
+                    "objectKey": object_key,
+                    "url": post["url"],
+                    "fields": post["fields"],
+                    "expiresIn": expires_in,
+                }
+        endpoint = (
+            settings.S3_ENDPOINT_URL.rstrip("/")
+            if settings.S3_ENDPOINT_URL
+            else "https://s3.amazonaws.com"
+        )
+        return {
+            "objectKey": object_key,
+            "url": f"{endpoint}/{self.bucket}/{object_key}",
+            "fields": {"Content-Type": content_type, "key": object_key},
+            "expiresIn": expires_in,
+        }
 
     def health(self) -> dict:
         if not settings.S3_ENDPOINT_URL or not self.bucket:
