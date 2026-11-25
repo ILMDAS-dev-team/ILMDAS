@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from django.conf import settings
+from django.contrib.auth.hashers import identify_hasher
+from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 from .constants import ALL_ROLE_CODES, ROLE_DESCRIPTIONS, ROLE_NAMES
 
@@ -64,14 +67,6 @@ def seed_roles() -> None:
                 "description": ROLE_DESCRIPTIONS[code],
             },
         )
-"""Custom user account and role models for ILMDAS (FR-SEC-002)."""
-
-from __future__ import annotations
-
-from django.contrib.auth.hashers import identify_hasher
-from django.contrib.auth.models import AbstractUser
-from django.db import models
-from django.utils import timezone
 
 
 class UserAccountStatus(models.TextChoices):
