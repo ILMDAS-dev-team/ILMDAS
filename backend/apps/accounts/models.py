@@ -79,8 +79,6 @@ class UserAccountStatus(models.TextChoices):
     DEACTIVATED = "deactivated", "Deactivated"
 
 
-
-
 class User(AbstractUser):
     """User account entity adhering to FR-SEC-002 with secure one-way password hashing."""
 
