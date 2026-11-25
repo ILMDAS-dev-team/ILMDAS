@@ -1,17 +1,15 @@
-import { redirect } from "next/navigation"
+"use client"
+
+import { RequireRole } from "@/components/RequireRole"
 import { IiifStatus } from "@/components/IiifStatus"
-import { verifyStaffSession } from "@/lib/auth"
 
-export default async function StaffStatusPage() {
-  const isAuthenticated = await verifyStaffSession()
-  if (!isAuthenticated) {
-    redirect("/sign-in")
-  }
-
+export default function StaffStatusPage() {
   return (
-    <section>
-      <h1>Image service</h1>
-      <IiifStatus />
-    </section>
+    <RequireRole requireStaff>
+      <section>
+        <h1>Image service</h1>
+        <IiifStatus />
+      </section>
+    </RequireRole>
   )
 }

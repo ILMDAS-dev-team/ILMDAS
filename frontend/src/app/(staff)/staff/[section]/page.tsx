@@ -1,20 +1,12 @@
-import { redirect } from "next/navigation"
-import { verifyStaffSession } from "@/lib/auth"
+"use client"
 
-export default async function StaffSectionPage({
-  params,
-}: {
-  params: Promise<{ section: string }>
-}) {
-  const isAuthenticated = await verifyStaffSession()
-  if (!isAuthenticated) {
-    redirect("/sign-in")
-  }
+import { RequireRole } from "@/components/RequireRole"
 
+export default function StaffSectionPage({ params }: { params: Promise<{ section: string }> }) {
   return (
-    <section>
+    <RequireRole requireStaff>
       <StaffSection params={params} />
-    </section>
+    </RequireRole>
   )
 }
 

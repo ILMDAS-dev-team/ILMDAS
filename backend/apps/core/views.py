@@ -18,6 +18,9 @@ from rest_framework.response import Response
 from rest_framework.serializers import CharField, Serializer
 from rest_framework.views import APIView
 
+from apps.accounts.constants import ROLE_DIGITAL_ARCHIVIST, ROLE_SYSTEM_ADMINISTRATOR
+from apps.accounts.permissions import HasRole
+from apps.accounts.serializers import UserSummarySerializer
 from apps.accounts.throttling import UploadRateThrottle
 from apps.audit.models import record_audit_event
 
@@ -106,7 +109,8 @@ class SessionProbeView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
-        return Response({"authenticated": True})
+        serializer = UserSummarySerializer(request.user)
+        return Response({"authenticated": True, "user": serializer.data})
 
 
 class ErrorProbeView(APIView):
@@ -138,7 +142,8 @@ class ErrorProbeView(APIView):
 
 
 class ObjectUploadView(APIView):
-    permission_classes = [CanUploadArchiveObject]
+    permission_classes = [IsAuthenticated, HasRole, CanUploadArchiveObject]
+    required_roles = [ROLE_SYSTEM_ADMINISTRATOR, ROLE_DIGITAL_ARCHIVIST]
     throttle_classes = [UploadRateThrottle]
 
     def post(self, request):
@@ -316,7 +321,8 @@ class IiifStatusView(APIView):
 
 
 class CatalogueIndexView(APIView):
-    permission_classes = [CanManageSearchIndex]
+    permission_classes = [IsAuthenticated, HasRole, CanManageSearchIndex]
+    required_role = ROLE_SYSTEM_ADMINISTRATOR
 
     def post(self, request):
         CatalogueIndex().rebuild()
