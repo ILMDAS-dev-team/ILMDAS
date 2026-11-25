@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 import { useAuth } from "@/context/AuthContext"
 import { LanguageSlot } from "@/components/LanguageSlot"
@@ -33,19 +34,13 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
     setLinks(filtered)
   }, [loading, user])
 
-  if (loading || !user) {
-    return (
-      <div className="shell" data-shell="staff">
-        <header>
-          <p>ILMDAS staff</p>
-          <nav className="nav" aria-label="Staff">
-            <Link href="/staff">Home</Link>
-          </nav>
-          <LanguageSlot />
-        </header>
-        <main>{children}</main>
-      </div>
-    )
+  // Do not render children when loading or unauthenticated
+  if (loading) {
+    return <div className="shell"><p>Loading...</p></div>
+  }
+
+  if (!user || !isStaff(user)) {
+    redirect("/sign-in")
   }
 
   return (
