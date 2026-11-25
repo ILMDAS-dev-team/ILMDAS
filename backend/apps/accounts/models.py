@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.db import models
 
 from .constants import ALL_ROLE_CODES, ROLE_DESCRIPTIONS, ROLE_NAMES
@@ -27,11 +27,15 @@ class Role(models.Model):
 class UserRole(models.Model):
     """Assignment of a role to a user. A user may hold multiple roles."""
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="user_roles")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="user_roles",
+    )
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="user_roles")
     assigned_at = models.DateTimeField(auto_now_add=True)
     assigned_by = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

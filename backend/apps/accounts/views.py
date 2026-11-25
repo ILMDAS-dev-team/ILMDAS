@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed
@@ -24,6 +23,8 @@ from apps.accounts.serializers import (
 from apps.audit.models import record_audit_event
 
 from .throttling import LoginRateThrottle
+
+User = get_user_model()
 
 
 # RBAC Views (ILMDAS-204, ILMDAS-205)
@@ -88,6 +89,20 @@ class UserRoleAssignView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        # Audit trail for role assignment
+        record_audit_event(
+            action="role.assigned",
+            actor=request.user,
+            object_type="UserRole",
+            object_id=str(target_user.id),
+            details={
+                "target_user": target_user.username,
+                "role_code": role_code,
+                "role_name": role.name,
+            },
+            request=request,
+        )
+
         return Response(
             {"detail": f"Role '{role_code}' assigned to user '{target_user.username}'."},
             status=status.HTTP_201_CREATED,
@@ -110,6 +125,20 @@ class UserRoleRemoveView(APIView):
                 {"detail": f"User does not have role '{role_code}'."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        # Audit trail for role revocation
+        record_audit_event(
+            action="role.revoked",
+            actor=request.user,
+            object_type="UserRole",
+            object_id=str(target_user.id),
+            details={
+                "target_user": target_user.username,
+                "role_code": role_code,
+                "role_name": role.name,
+            },
+            request=request,
+        )
 
         return Response(
             {"detail": f"Role '{role_code}' removed from user '{target_user.username}'."},
