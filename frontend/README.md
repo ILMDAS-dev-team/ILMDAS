@@ -20,3 +20,5 @@ npm run test:e2e
 `npm run test:coverage` runs Jest with coverage. `npm run build` is the production build CI also runs (`output: "standalone"` for `docker/frontend/Dockerfile`). `npm run test:e2e` is local Playwright smoke (not run in CI); use `make frontend-e2e` from the repo root.
 
 The dev server listens on http://localhost:3010. It calls the Django API at `NEXT_PUBLIC_API_URL`, which defaults to http://localhost:8010.
+
+Server-rendered staff pages that forward the session cookie use `ILMDAS_API_URL` first, then `NEXT_PUBLIC_API_URL`, then the same local default. `ILMDAS_API_URL` is server-only: set it to the trusted internal API URL in deployed environments. Pointing it at an untrusted host would expose staff session cookies.

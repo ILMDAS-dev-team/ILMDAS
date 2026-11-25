@@ -166,4 +166,9 @@ Codes are `validation_error`, `authentication_error`, `authorization_error`, `no
 
 Object storage references look like `s3://bucket/key`. They are not public URLs. Uploads are private.
 
+Staff can read a member record and its borrowing explanation with
+`GET /api/v1/members/{id}/`. The response includes a `borrowingEligibility` object with
+`eligible`, a machine-readable `reason`, and a staff-language `message`. The public session
+and login responses do not include these fields.
+
 The time zone is `Africa/Addis_Ababa`.

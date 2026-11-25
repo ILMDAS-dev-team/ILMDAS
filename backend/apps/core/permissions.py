@@ -39,6 +39,18 @@ class CanViewObjectDetail(BasePermission):
         )
 
 
+class CanViewMemberRecord(BasePermission):
+    """Allows staff to read member records, including the eligibility explanation."""
+
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+        return (
+            getattr(request.user, "role", None) in (Role.LIBRARY_STAFF, Role.ADMINISTRATOR)
+            or request.user.is_superuser
+        )
+
+
 class CanManageSearchIndex(BasePermission):
     """Allows managing (rebuilding or deleting) the search index only to Administrators."""
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib.auth.hashers import identify_hasher
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -130,3 +131,50 @@ class User(AbstractUser):
 
 
 UserAccount = User
+
+
+class MembershipCategory(models.Model):
+    """A staff-managed membership category (FR-MEM-004).
+
+    No fee or loan-limit fields live here until those policies are approved.
+    """
+
+    code = models.SlugField(max_length=64, unique=True)
+    name = models.CharField(max_length=128)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "membership category"
+        verbose_name_plural = "membership categories"
+
+    def __str__(self) -> str:
+        state = "active" if self.is_active else "inactive"
+        return f"{self.name} ({state})"
+
+
+class Membership(models.Model):
+    """The member record that links an account to a membership category."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="membership",
+    )
+    category = models.ForeignKey(
+        MembershipCategory,
+        on_delete=models.PROTECT,
+        related_name="memberships",
+    )
+    joined_at = models.DateTimeField(default=timezone.now, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-joined_at"]
+        verbose_name = "membership"
+        verbose_name_plural = "memberships"
+
+    def __str__(self) -> str:
+        return f"{self.user.get_username()} ({self.category.name})"
