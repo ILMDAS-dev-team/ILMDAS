@@ -9,14 +9,24 @@ from .models import UserAccount
 @admin.register(UserAccount)
 class UserAccountAdmin(DjangoUserAdmin):
     ordering = ("username",)
-    list_display = ("username", "status", "is_staff", "date_joined", "last_login")
-    list_filter = ("status", "is_staff", "is_superuser")
-    search_fields = ("username",)
+    list_display = ("username", "email", "role", "status", "is_staff", "date_joined", "last_login")
+    list_filter = ("role", "status", "is_staff", "is_superuser")
+    search_fields = ("username", "email", "first_name", "last_name")
     fieldsets = (
         (None, {"fields": ("username", "password")}),
+        ("Personal info", {"fields": ("first_name", "last_name", "email")}),
         (
-            "Status",
-            {"fields": ("status", "is_staff", "is_superuser", "groups", "user_permissions")},
+            "Role and status",
+            {
+                "fields": (
+                    "role",
+                    "status",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                )
+            },
         ),
         ("Dates", {"fields": ("last_login", "date_joined")}),
     )
@@ -25,7 +35,17 @@ class UserAccountAdmin(DjangoUserAdmin):
             None,
             {
                 "classes": ("wide",),
-                "fields": ("username", "password1", "password2", "status", "is_staff"),
+                "fields": (
+                    "username",
+                    "email",
+                    "first_name",
+                    "last_name",
+                    "password1",
+                    "password2",
+                    "role",
+                    "status",
+                    "is_staff",
+                ),
             },
         ),
     )

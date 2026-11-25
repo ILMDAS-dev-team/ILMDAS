@@ -2,6 +2,9 @@
 
 import pytest
 from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
+
+from apps.accounts.models import UserAccountStatus
 
 UserAccount = get_user_model()
 TEST_PASSWORD = "correct-horse-pass"  # pragma: allowlist secret
@@ -17,7 +20,7 @@ def inactive_user(db):
     return UserAccount.objects.create_user(
         username="inactive",
         password=TEST_PASSWORD,
-        status=UserAccount.Status.INACTIVE,
+        status=UserAccountStatus.INACTIVE,
     )
 
 
@@ -32,7 +35,7 @@ def test_login_success_creates_session_and_updates_last_login(api_client, active
     assert response.status_code == 200
     assert response.data["authenticated"] is True
     assert response.data["username"] == "active"
-    assert response.data["status"] == UserAccount.Status.ACTIVE
+    assert response.data["status"] == UserAccountStatus.ACTIVE
     active_user.refresh_from_db()
     assert active_user.last_login is not None
 
@@ -100,3 +103,81 @@ def test_csrf_endpoint_sets_cookie(api_client):
     assert response.status_code == 200
     assert "csrfToken" in response.data
     assert "csrftoken" in response.cookies
+
+
+@pytest.mark.django_db
+def test_login_failure_uses_safe_invalid_credentials_message(api_client, active_user):
+    response = api_client.post(
+        "/api/v1/auth/login/",
+        {"username": "active", "password": "wrong-secret-val"},  # pragma: allowlist secret
+        format="json",
+    )
+    assert response.status_code == 401
+    assert response.data["code"] == "authentication_error"
+    assert response.data["message"] == "Sign-in failed. Check your details and try again."
+
+
+@pytest.mark.django_db
+def test_login_without_csrf_token_is_rejected(active_user):
+    client = APIClient(enforce_csrf_checks=True)
+    response = client.post(
+        "/api/v1/auth/login/",
+        {"username": "active", "password": TEST_PASSWORD},
+        format="json",
+    )
+    assert response.status_code == 403
+    assert response.data["code"] == "authorization_error"
+    assert "sessionid" not in response.cookies
+
+
+@pytest.mark.django_db
+def test_login_with_csrf_token_from_csrf_endpoint_succeeds(active_user):
+    client = APIClient(enforce_csrf_checks=True)
+    token = client.get("/api/v1/auth/csrf/").data["csrfToken"]
+    response = client.post(
+        "/api/v1/auth/login/",
+        {"username": "active", "password": TEST_PASSWORD},
+        format="json",
+        HTTP_X_CSRFTOKEN=token,
+    )
+    assert response.status_code == 200
+    assert response.data["authenticated"] is True
+
+
+@pytest.mark.django_db
+def test_login_from_allowed_frontend_origin_gets_credentialed_cors(active_user):
+    client = APIClient(enforce_csrf_checks=True)
+    token = client.get("/api/v1/auth/csrf/").data["csrfToken"]
+    response = client.post(
+        "/api/v1/auth/login/",
+        {"username": "active", "password": TEST_PASSWORD},
+        format="json",
+        HTTP_X_CSRFTOKEN=token,
+        HTTP_ORIGIN="http://localhost:3010",
+    )
+    assert response.status_code == 200
+    assert response["Access-Control-Allow-Origin"] == "http://localhost:3010"
+    assert response["Access-Control-Allow-Credentials"] == "true"
+
+
+def test_cors_preflight_allows_frontend_headers(client):
+    response = client.options(
+        "/api/v1/auth/login/",
+        HTTP_ORIGIN="http://localhost:3010",
+        HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+        HTTP_ACCESS_CONTROL_REQUEST_HEADERS="content-type,x-csrftoken,x-correlation-id",
+    )
+    allowed = response["Access-Control-Allow-Headers"].lower()
+    for header in ("content-type", "x-csrftoken", "x-correlation-id"):
+        assert header in allowed
+
+
+def test_admin_can_edit_role_and_personal_fields():
+    from django.contrib import admin
+
+    model_admin = admin.site._registry[UserAccount]
+    edit_fields = {f for _, opts in model_admin.fieldsets for f in opts["fields"]}
+    add_fields = {f for _, opts in model_admin.add_fieldsets for f in opts["fields"]}
+    for field in ("role", "email", "first_name", "last_name"):
+        assert field in edit_fields
+        assert field in add_fields

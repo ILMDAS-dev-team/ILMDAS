@@ -13,12 +13,13 @@ const links = [
   { href: "/staff/reports", label: "Reports" },
   { href: "/staff/administration", label: "Administration" },
   { href: "/staff/status", label: "IIIF status" },
+  { href: "/logout", label: "Sign out" },
 ]
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
   const isAuthenticated = await verifyStaffSession()
   if (!isAuthenticated) {
-    redirect("/sign-in")
+    redirect("/login?next=/staff")
   }
 
   return (

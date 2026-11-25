@@ -22,6 +22,8 @@ logger = logging.getLogger("ilmdas.api")
 SAFE_MESSAGE = {
     "validation_error": "The request is not valid.",
     "authentication_error": "Authentication is required.",
+    # Same wording for unknown user, wrong password and inactive account.
+    "invalid_credentials": "Sign-in failed. Check your details and try again.",
     "authorization_error": "You do not have permission to do that.",
     "not_found": "The requested record was not found.",
     "conflict": "The request conflicts with the current record.",
@@ -34,6 +36,13 @@ class Conflict(APIException):
     status_code = 409
     default_detail = SAFE_MESSAGE["conflict"]
     default_code = "conflict"
+
+
+class InvalidCredentials(AuthenticationFailed):
+    """Login was refused. Shares the authentication_error code, with its own safe message."""
+
+    default_detail = SAFE_MESSAGE["invalid_credentials"]
+    default_code = "authentication_error"
 
 
 class ServiceUnavailable(APIException):
@@ -70,7 +79,11 @@ def api_exception_handler(exc: Exception, context: dict) -> Response:
     logger.info("api_error code=%s correlation_id=%s", code, correlation_id)
     body: dict = {
         "code": code,
-        "message": SAFE_MESSAGE.get(code, SAFE_MESSAGE["unavailable"]),
+        "message": (
+            SAFE_MESSAGE["invalid_credentials"]
+            if isinstance(exc, InvalidCredentials)
+            else SAFE_MESSAGE.get(code, SAFE_MESSAGE["unavailable"])
+        ),
         "correlationId": correlation_id,
     }
     if errors is not None:

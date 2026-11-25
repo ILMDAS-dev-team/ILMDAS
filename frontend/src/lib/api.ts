@@ -61,3 +61,11 @@ export async function ensureCsrfCookie(baseUrl?: string): Promise<string | null>
   const body = (await response.json()) as { csrfToken?: string }
   return body.csrfToken || getCookie("csrftoken")
 }
+
+/**
+ * Header carrying the token returned by the CSRF endpoint. Use this instead of relying on
+ * `document.cookie`, which cannot see the API's cookie when the API is on another host.
+ */
+export function csrfHeader(token: string | null): HeaderMap {
+  return token ? { "X-CSRFToken": token } : {}
+}

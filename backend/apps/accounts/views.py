@@ -6,12 +6,13 @@ from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.audit.models import record_audit_event
+from apps.core.exceptions import InvalidCredentials
 
 from .serializers import LoginSerializer, UserProfileSerializer
 from .throttling import LoginRateThrottle
@@ -32,6 +33,12 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [LoginRateThrottle]
 
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # DRF only checks CSRF for already-authenticated sessions, so an anonymous
+        # login POST would skip it. Enforce it here (403 through the shared error contract).
+        SessionAuthentication().enforce_csrf(request)
+
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -47,7 +54,7 @@ class LoginView(APIView):
                 object_id=username,
                 request=request,
             )
-            raise AuthenticationFailed("Authentication failed.")
+            raise InvalidCredentials()
 
         login(request, user)
         record_audit_event(

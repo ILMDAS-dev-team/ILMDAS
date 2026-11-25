@@ -12,6 +12,8 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Role, User, UserAccount, UserAccountStatus
 from apps.audit.models import AuditRecord
 
+TEST_PASSWORD = "Test@123456!"  # pragma: allowlist secret
+
 
 def test_accounts_package_imports():
     import apps.accounts as app
@@ -24,7 +26,7 @@ def test_custom_user_model_defined_and_role_properties():
     user_model = get_user_model()
     assert user_model is User
 
-    member = user_model.objects.create_user(username="member_test", password="Test@123456!")
+    member = user_model.objects.create_user(username="member_test", password=TEST_PASSWORD)
     assert member.role == Role.MEMBER
     assert member.is_member is True
     assert member.is_library_staff is False
@@ -32,19 +34,21 @@ def test_custom_user_model_defined_and_role_properties():
     assert member.is_administrator is False
 
     staff = user_model.objects.create_user(
-        username="staff_test", password="Test@123456!", role=Role.LIBRARY_STAFF
+        username="staff_test",
+        password=TEST_PASSWORD,  # pragma: allowlist secret
+        role=Role.LIBRARY_STAFF,
     )
     assert staff.is_library_staff is True
     assert staff.is_member is False
 
     archivist = user_model.objects.create_user(
-        username="archivist_test", password="Test@123456!", role=Role.ARCHIVIST
+        username="archivist_test", password=TEST_PASSWORD, role=Role.ARCHIVIST
     )
     assert archivist.is_archivist is True
     assert archivist.is_member is False
 
     admin = user_model.objects.create_user(
-        username="admin_test", password="Test@123456!", role=Role.ADMINISTRATOR
+        username="admin_test", password=TEST_PASSWORD, role=Role.ADMINISTRATOR
     )
     assert admin.is_administrator is True
     assert admin.is_library_staff is True
@@ -65,7 +69,7 @@ def test_password_validators_configured_and_enforce_policy():
         validate_password("password123456")
 
     # Strong password should pass
-    validate_password("Test@123456!")
+    validate_password(TEST_PASSWORD)
 
 
 def test_basic_auth_removed_from_defaults():
@@ -79,12 +83,12 @@ def test_basic_auth_removed_from_defaults():
 @pytest.mark.django_db
 def test_login_success_and_audit():
     user = User.objects.create_user(
-        username="login_user", password="Test@123456!", role=Role.LIBRARY_STAFF
+        username="login_user", password=TEST_PASSWORD, role=Role.LIBRARY_STAFF
     )
     client = APIClient()
     response = client.post(
         "/api/v1/auth/login/",
-        {"username": "login_user", "password": "Test@123456!"},
+        {"username": "login_user", "password": TEST_PASSWORD},
         format="json",
     )
     assert response.status_code == 200
@@ -99,11 +103,11 @@ def test_login_success_and_audit():
 
 @pytest.mark.django_db
 def test_login_failure_and_audit():
-    User.objects.create_user(username="target_user", password="Test@123456!")
+    User.objects.create_user(username="target_user", password=TEST_PASSWORD)
     client = APIClient()
     response = client.post(
         "/api/v1/auth/login/",
-        {"username": "target_user", "password": "WrongPassword!"},
+        {"username": "target_user", "password": "WrongPassword!"},  # pragma: allowlist secret
         format="json",
     )
     assert response.status_code == 401
@@ -117,12 +121,12 @@ def test_login_failure_and_audit():
 @pytest.mark.django_db
 def test_logout_and_session_endpoints():
     user = User.objects.create_user(
-        username="session_user", password="Test@123456!", role=Role.ARCHIVIST
+        username="session_user", password=TEST_PASSWORD, role=Role.ARCHIVIST
     )
     client = APIClient()
     client.force_authenticate(user)
 
-    session_resp = client.get("/api/v1/auth/session/")
+    session_resp = client.get("/api/v1/auth/me/")
     assert session_resp.status_code == 200
     assert session_resp.data["username"] == "session_user"
     assert session_resp.data["isArchivist"] is True
@@ -143,7 +147,7 @@ def test_user_account_entity_fields_and_traceability_fr_sec_002():
 
     account = UserAccount.objects.create_user(
         username="librarian_01",
-        password="Test@123456!",
+        password=TEST_PASSWORD,
     )
     assert account.id is not None
     assert account.username == "librarian_01"
@@ -153,13 +157,13 @@ def test_user_account_entity_fields_and_traceability_fr_sec_002():
     assert account.last_login is None
     assert account.last_login_time is None
     assert account.password_hash == account.password
-    assert "Test@123456!" not in account.password_hash
+    assert TEST_PASSWORD not in account.password_hash
 
 
 @pytest.mark.django_db
 def test_password_stored_as_secure_one_way_hash_not_raw_password_sec_01():
     """Acceptance criteria: A created account stores a hash, not the password."""
-    raw_password = "Test@123456!"
+    raw_password = TEST_PASSWORD
     account = UserAccount.objects.create_user(
         username="hashing_target",
         password=raw_password,
@@ -187,20 +191,20 @@ def test_password_hashing_on_create_and_change_sec_01():
     # 1. Direct instantiation and save
     direct_user = User(
         username="direct_user",
-        password="Test@123456!",
+        password=TEST_PASSWORD,
     )
     direct_user.save()
-    assert "Test@123456!" not in direct_user.password
+    assert TEST_PASSWORD not in direct_user.password
     assert direct_user.password.startswith("pbkdf2_sha256$")
-    assert direct_user.check_password("Test@123456!") is True
+    assert direct_user.check_password(TEST_PASSWORD) is True
 
     # 2. Password change via direct assignment
-    direct_user.password = "ChangedSecret@123456!"
+    direct_user.password = "ChangedSecret@123456!"  # pragma: allowlist secret
     direct_user.save()
     assert "ChangedSecret@123456!" not in direct_user.password
     assert direct_user.password.startswith("pbkdf2_sha256$")
     assert direct_user.check_password("ChangedSecret@123456!") is True
-    assert direct_user.check_password("Test@123456!") is False
+    assert direct_user.check_password(TEST_PASSWORD) is False
 
     # 3. Password change via set_password
     direct_user.set_password("NewSecretViaSet@123456!")
@@ -215,13 +219,13 @@ def test_duplicate_usernames_are_rejected_sec_01():
     """Acceptance criteria: Duplicate usernames are rejected."""
     UserAccount.objects.create_user(
         username="unique_username",
-        password="Test@123456!",
+        password=TEST_PASSWORD,
     )
 
     with pytest.raises(IntegrityError):
         UserAccount.objects.create_user(
             username="unique_username",
-            password="DifferentPassword456!",
+            password="DifferentPassword456!",  # pragma: allowlist secret
         )
 
 
@@ -238,7 +242,7 @@ def test_status_lifecycle_values_activation_and_deactivation_fr_sec_002():
     # Default is ACTIVE and is_active is True
     account = UserAccount.objects.create_user(
         username="lifecycle_user",
-        password="Test@123456!",
+        password=TEST_PASSWORD,
     )
     assert account.status == UserAccountStatus.ACTIVE
     assert account.is_active is True

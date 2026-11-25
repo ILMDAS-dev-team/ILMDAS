@@ -32,7 +32,7 @@ test("staff shell reserves the module places", () => {
 test("staff layout enforces server-side session check", () => {
   const layout = read("src/app/(staff)/staff/layout.tsx")
   expect(layout.includes("verifyStaffSession")).toBe(true)
-  expect(layout.includes('redirect("/sign-in")')).toBe(true)
+  expect(layout.includes('redirect("/login?next=/staff")')).toBe(true)
 })
 
 test("shells fit a 360px viewport and a desktop width", () => {

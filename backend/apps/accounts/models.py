@@ -28,8 +28,6 @@ class Role(models.TextChoices):
 class User(AbstractUser):
     """User account entity adhering to FR-SEC-002 with secure one-way password hashing."""
 
-    Status = UserAccountStatus
-
     status = models.CharField(
         max_length=32,
         choices=UserAccountStatus.choices,

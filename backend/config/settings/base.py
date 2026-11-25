@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from corsheaders.defaults import default_headers as default_cors_headers
 
 from .env import load_env_file, require_env
 
@@ -148,3 +149,9 @@ CORS_ALLOWED_ORIGINS = [
     for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3010").split(",")
     if origin.strip()
 ]
+# The frontend (another origin in development) sends the session cookie and the
+# CSRF token, so credentialed CORS requests must be allowed for these origins.
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (*default_cors_headers, "x-correlation-id")
+# Django checks the Origin header of unsafe requests against this list.
+CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
