@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from rest_framework.serializers import CharField, Serializer
 from rest_framework.views import APIView
 
-from apps.accounts.constants import ROLE_SYSTEM_ADMINISTRATOR
+from apps.accounts.constants import ROLE_DIGITAL_ARCHIVIST, ROLE_SYSTEM_ADMINISTRATOR
 from apps.accounts.permissions import HasRole
 from apps.accounts.serializers import UserSummarySerializer
 from apps.accounts.throttling import UploadRateThrottle
@@ -143,7 +143,7 @@ class ErrorProbeView(APIView):
 
 class ObjectUploadView(APIView):
     permission_classes = [IsAuthenticated, HasRole, CanUploadArchiveObject]
-    required_role = ROLE_SYSTEM_ADMINISTRATOR
+    required_roles = [ROLE_SYSTEM_ADMINISTRATOR, ROLE_DIGITAL_ARCHIVIST]
     throttle_classes = [UploadRateThrottle]
 
     def post(self, request):
