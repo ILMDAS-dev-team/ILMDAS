@@ -29,9 +29,10 @@ test("staff shell reserves the module places", () => {
   }
 })
 
-test("staff layout enforces server-side session check", () => {
+test("staff layout sends visitors without a staff session to login", () => {
   const layout = read("src/app/(staff)/staff/layout.tsx")
-  expect(layout.includes("verifyStaffSession")).toBe(true)
+  expect(layout.includes("useAuth()")).toBe(true)
+  expect(layout.includes("isStaff(user)")).toBe(true)
   expect(layout.includes('redirect("/login?next=/staff")')).toBe(true)
 })
 
