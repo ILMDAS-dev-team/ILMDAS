@@ -18,8 +18,10 @@ from apps.accounts.constants import (
 class HasRole(BasePermission):
     """Check that the authenticated user holds a specific role code.
 
-    The view sets ``required_role`` to a role code constant. When unset, any
-    authenticated user is permitted. Unauthenticated requests are denied.
+    The view sets ``required_role`` (single) or ``required_roles`` (list) to
+    role code constants. Superusers bypass role checks. When no role is
+    required, any authenticated user is permitted. Unauthenticated requests
+    are denied.
     """
 
     def has_permission(self, request, view) -> bool:
@@ -27,6 +29,16 @@ class HasRole(BasePermission):
         if not user or not user.is_authenticated:
             return False
 
+        # Superusers bypass role checks
+        if user.is_superuser:
+            return True
+
+        # Check for multiple required roles first
+        required_roles = getattr(view, "required_roles", None)
+        if required_roles is not None:
+            return user.user_roles.filter(role__code__in=required_roles).exists()
+
+        # Fall back to single required role
         required_role = getattr(view, "required_role", None)
         if required_role is None:
             return True
