@@ -555,6 +555,17 @@ def test_classify_not_found_and_client_error_status():
     assert status == 418
 
 
+def test_classify_django_validation_error():
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    from apps.core.exceptions import classify
+
+    code, status, errors = classify(DjangoValidationError("Invalid status"))
+    assert code == "validation_error"
+    assert status == 400
+    assert errors == ["Invalid status"]
+
+
 @pytest.mark.django_db
 def test_object_reference_str():
     record = ObjectReference.objects.create(

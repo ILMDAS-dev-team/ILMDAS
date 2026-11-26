@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, connection, transaction
 from rest_framework.test import APIClient
 
 from apps.accounts.constants import (
@@ -19,6 +22,10 @@ from apps.accounts.testing import make_user
 from apps.audit.models import AuditRecord
 
 TEST_PASSWORD = "Test@123456!"  # pragma: allowlist secret
+CHANGED_PASSWORD = "ChangedSecret@123456!"  # pragma: allowlist secret
+SET_PASSWORD_VALUE = "NewSecretViaSet@123456!"  # pragma: allowlist secret
+PARTIAL_UPDATE_PASSWORD = "ChangedPassword123!"  # pragma: allowlist secret
+WRONG_PASSWORD = "IncorrectPassword!"  # pragma: allowlist secret
 
 
 def test_accounts_package_imports():
@@ -160,9 +167,22 @@ def test_password_stored_as_secure_one_way_hash_not_raw_password_sec_01():
     assert raw_password not in stored_password
     assert stored_password.startswith("pbkdf2_sha256$")
 
+    # Database row-level inspection: prove raw password is absent from every column in the stored row
+    table_name = connection.ops.quote_name(User._meta.db_table)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT * FROM {table_name} WHERE username = %s",  # noqa: S608
+            [account.username],
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        for col_value in row:
+            if col_value is not None:
+                assert raw_password not in str(col_value)
+
     # One-way verification
     assert account.check_password(raw_password) is True
-    assert account.check_password("IncorrectPassword!") is False
+    assert account.check_password(WRONG_PASSWORD) is False
 
 
 @pytest.mark.django_db
@@ -179,19 +199,89 @@ def test_password_hashing_on_create_and_change_sec_01():
     assert direct_user.check_password(TEST_PASSWORD) is True
 
     # 2. Password change via direct assignment
-    direct_user.password = "ChangedSecret@123456!"  # pragma: allowlist secret
+    direct_user.password = CHANGED_PASSWORD
     direct_user.save()
-    assert "ChangedSecret@123456!" not in direct_user.password
+    assert CHANGED_PASSWORD not in direct_user.password
     assert direct_user.password.startswith("pbkdf2_sha256$")
-    assert direct_user.check_password("ChangedSecret@123456!") is True
+    assert direct_user.check_password(CHANGED_PASSWORD) is True
     assert direct_user.check_password(TEST_PASSWORD) is False
 
     # 3. Password change via set_password
-    direct_user.set_password("NewSecretViaSet@123456!")
+    direct_user.set_password(SET_PASSWORD_VALUE)
     direct_user.save()
-    assert "NewSecretViaSet@123456!" not in direct_user.password
-    assert direct_user.check_password("NewSecretViaSet@123456!") is True
-    assert direct_user.check_password("ChangedSecret@123456!") is False
+    assert SET_PASSWORD_VALUE not in direct_user.password
+    assert direct_user.check_password(SET_PASSWORD_VALUE) is True
+    assert direct_user.check_password(CHANGED_PASSWORD) is False
+
+    # 4. Password change with update_fields=["password"]
+    direct_user.password = PARTIAL_UPDATE_PASSWORD
+    direct_user.save(update_fields=["password"])
+    direct_user.refresh_from_db()
+    assert PARTIAL_UPDATE_PASSWORD not in direct_user.password
+    assert direct_user.password.startswith("pbkdf2_sha256$")
+    assert direct_user.check_password(PARTIAL_UPDATE_PASSWORD) is True
+    assert direct_user.check_password(SET_PASSWORD_VALUE) is False
+
+
+@pytest.mark.django_db
+def test_unusable_password_marker_is_preserved_on_later_saves_sec_01():
+    """A password disabled with set_password(None) must never become usable again."""
+    account = UserAccount.objects.create_user(username="unusable_password_user")
+    marker = account.password
+    assert marker.startswith(UNUSABLE_PASSWORD_PREFIX)
+
+    account.activate()
+    account.refresh_from_db()
+    assert account.password == marker
+
+    account.save()
+    account.refresh_from_db()
+    assert account.password == marker
+    assert account.check_password(marker) is False
+    assert account.check_password(TEST_PASSWORD) is False
+
+
+@pytest.mark.django_db
+def test_raw_password_is_persisted_with_partial_update_fields_sec_01():
+    """Hashing must reach the database even when update_fields omits the password."""
+    account = UserAccount.objects.create_user(
+        username="partial_update_user", password=TEST_PASSWORD
+    )
+    account.password = PARTIAL_UPDATE_PASSWORD
+    account.status = UserAccountStatus.INACTIVE
+
+    account.save(update_fields=["status"])
+    account.refresh_from_db()
+
+    assert account.password.startswith("pbkdf2_sha256$")
+    assert account.check_password(PARTIAL_UPDATE_PASSWORD) is True
+    assert account.check_password(TEST_PASSWORD) is False
+    assert account.status == UserAccountStatus.INACTIVE
+
+
+@pytest.mark.django_db
+def test_password_is_never_logged_during_create_or_change(caplog):
+    """API / Backend Notes: Use Django's password hasher or an equivalent approved one-way algorithm."""
+    with caplog.at_level(logging.DEBUG):
+        user = UserAccount.objects.create_user(
+            username="unlogged_user_1",
+            password=TEST_PASSWORD,
+        )
+        direct = User(
+            username="unlogged_user_2",
+            password=TEST_PASSWORD,
+        )
+        direct.save()
+        user.password = CHANGED_PASSWORD
+        user.save()
+        direct.set_password(SET_PASSWORD_VALUE)
+        direct.save()
+
+    assert TEST_PASSWORD not in caplog.text
+    assert CHANGED_PASSWORD not in caplog.text
+    assert SET_PASSWORD_VALUE not in caplog.text
+    assert TEST_PASSWORD not in str(user)
+    assert TEST_PASSWORD not in repr(user)
 
 
 @pytest.mark.django_db
@@ -253,7 +343,11 @@ def test_status_lifecycle_values_activation_and_deactivation_fr_sec_002():
         assert account.status == lifecycle_status
         assert account.is_active is False
 
-    # Invalid status value fails validation on full_clean
+    # Invalid status value fails validation on full_clean, save, and DB update
     account.status = "invalid_status_value"
     with pytest.raises(ValidationError):
         account.full_clean()
+    with pytest.raises(ValidationError):
+        account.save()
+    with pytest.raises(IntegrityError), transaction.atomic():
+        UserAccount.objects.filter(pk=account.pk).update(status="invalid_status_value")

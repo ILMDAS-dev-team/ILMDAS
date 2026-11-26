@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from django.core.exceptions import SuspiciousOperation
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import Http404
 from rest_framework.exceptions import (
     APIException,
@@ -54,6 +55,9 @@ class ServiceUnavailable(APIException):
 def classify(exc: Exception) -> tuple[str, int, object | None]:
     if isinstance(exc, ValidationError):
         return "validation_error", 400, exc.detail
+    if isinstance(exc, DjangoValidationError):
+        errors = exc.message_dict if hasattr(exc, "message_dict") else exc.messages
+        return "validation_error", 400, errors
     if isinstance(exc, SuspiciousOperation):
         return "validation_error", 400, None
     if isinstance(exc, NotAuthenticated | AuthenticationFailed):
