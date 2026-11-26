@@ -33,6 +33,18 @@ USE_TZ = True
 
 AUTH_USER_MODEL = "accounts.User"
 
+# SRS FR-SEC-002: bcrypt/Argon2. Argon2 hashes new and changed passwords. The rest are
+# Django's default hashers, kept so every existing hash stays recognised: User.save()
+# re-hashes any value it cannot identify, which would destroy an unlisted hash.
+# Django re-hashes older hashes as Argon2 on the next successful login.
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+    "django.contrib.auth.hashers.ScryptPasswordHasher",
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",

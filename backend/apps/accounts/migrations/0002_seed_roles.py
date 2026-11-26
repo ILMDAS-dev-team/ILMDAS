@@ -34,7 +34,7 @@ def unseed_roles(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("accounts", "0001_initial"),
+        ("accounts", "0002_create_role_userrole"),
     ]
 
     operations = [

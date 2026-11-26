@@ -252,3 +252,70 @@ def test_unauthorized_upload_does_not_create_record(api_client):
     assert response.status_code == 403
     after_count = ObjectReference.objects.count()
     assert after_count == before_count
+
+
+# ---- Role removal guards and route layout ----
+
+
+def _admin(username: str) -> User:
+    user = _make_user(username)
+    _assign(user, ROLE_SYSTEM_ADMINISTRATOR)
+    return user
+
+
+@pytest.mark.django_db
+def test_admin_cannot_remove_own_administrator_role(api_client):
+    seed_roles()
+    admin = _admin("solo_admin")
+    _admin("other_admin")
+    api_client.force_authenticate(admin)
+    response = api_client.delete(f"/api/v1/users/{admin.id}/roles/{ROLE_SYSTEM_ADMINISTRATOR}/")
+    assert response.status_code == 409
+    assert response.data["errors"] == ["You cannot remove your own administrator role."]
+    assert _has_role(admin, ROLE_SYSTEM_ADMINISTRATOR)
+
+
+@pytest.mark.django_db
+def test_last_system_administrator_cannot_be_removed(api_client):
+    seed_roles()
+    target = _admin("last_admin")
+    superuser = User.objects.create_superuser(
+        username="root", password=DEFAULT_TEST_PASSWORD, email="root@example.org"
+    )
+    api_client.force_authenticate(superuser)
+    response = api_client.delete(f"/api/v1/users/{target.id}/roles/{ROLE_SYSTEM_ADMINISTRATOR}/")
+    assert response.status_code == 409
+    assert response.data["errors"] == ["At least one system administrator must remain."]
+
+
+@pytest.mark.django_db
+def test_user_must_keep_at_least_one_role(api_client):
+    seed_roles()
+    admin = _admin("role_admin")
+    member = _make_user("only_member")  # holds just the automatic member role
+    api_client.force_authenticate(admin)
+    response = api_client.delete(f"/api/v1/users/{member.id}/roles/{ROLE_MEMBER}/")
+    assert response.status_code == 409
+    assert response.data["errors"] == ["A user must keep at least one role."]
+    assert _has_role(member, ROLE_MEMBER)
+
+
+@pytest.mark.django_db
+def test_admin_can_remove_another_admins_role_when_one_remains(api_client):
+    seed_roles()
+    admin = _admin("keeper")
+    other = _admin("leaver")
+    api_client.force_authenticate(admin)
+    response = api_client.delete(f"/api/v1/users/{other.id}/roles/{ROLE_SYSTEM_ADMINISTRATOR}/")
+    assert response.status_code == 200
+    assert not _has_role(other, ROLE_SYSTEM_ADMINISTRATOR)
+
+
+@pytest.mark.django_db
+def test_account_routes_are_served_once(api_client):
+    seed_roles()
+    api_client.force_authenticate(_admin("route_admin"))
+    assert api_client.get("/api/v1/roles/").status_code == 200
+    assert api_client.get("/api/v1/auth/roles/").status_code == 404
+    assert api_client.post("/api/v1/login/", {}, format="json").status_code == 404
+    assert api_client.get("/api/v1/auth/me/").status_code == 200

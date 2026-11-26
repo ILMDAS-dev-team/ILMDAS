@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from django.conf import settings
-from django.contrib.auth.hashers import identify_hasher
+from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX, identify_hasher
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from .constants import (
@@ -111,6 +113,12 @@ class User(AbstractUser):
         ordering = ["username"]
         verbose_name = "user account"
         verbose_name_plural = "user accounts"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(status__in=UserAccountStatus.values),
+                name="accounts_user_status_valid",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.username} ({self.get_status_display()})"
@@ -171,12 +179,20 @@ class User(AbstractUser):
         self.save(update_fields=["status", "is_active", "updated_at"])
 
     def save(self, *args, **kwargs) -> None:
-        """Ensure password is automatically hashed and is_active is synced with lifecycle status."""
-        if self.password:
+        """Ensure password is automatically hashed, status is restricted to lifecycle values, and is_active is synced."""
+        if self.status not in UserAccountStatus.values:
+            raise ValidationError(
+                f"Invalid account status '{self.status}'. Must be one of: {list(UserAccountStatus.values)}."
+            )
+
+        if self.password and not self.password.startswith(UNUSABLE_PASSWORD_PREFIX):
             try:
                 identify_hasher(self.password)
             except ValueError:
                 self.set_password(self.password)
+                update_fields = kwargs.get("update_fields")
+                if update_fields is not None:
+                    kwargs["update_fields"] = set(update_fields) | {"password"}
 
         if self.status == UserAccountStatus.ACTIVE:
             self.is_active = True

@@ -20,11 +20,37 @@ else
   exit 1
 fi
 
+# Progress: each job has 6 steps; shown as [done/total percent] with timings.
+case "$TARGET" in
+  backend | frontend) TOTAL_STEPS=6 ;;
+  *) TOTAL_STEPS=12 ;;
+esac
+STEP_NO=0
+RUN_START=$SECONDS
+STEP_START=$SECONDS
 CURRENT_STEP="setup"
-step() { CURRENT_STEP="$*"; printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
-pass() { printf '\033[1;32m%s passed\033[0m\n' "$*"; }
+
+STEP_OPEN=0
+finish_step() {
+  if [ "$STEP_OPEN" -eq 1 ]; then
+    printf '\033[2m    done in %ss\033[0m\n' "$((SECONDS - STEP_START))"
+    STEP_OPEN=0
+  fi
+}
+step() {
+  finish_step
+  STEP_NO=$((STEP_NO + 1))
+  STEP_START=$SECONDS
+  STEP_OPEN=1
+  CURRENT_STEP="$*"
+  local pct=$(((STEP_NO - 1) * 100 / TOTAL_STEPS))
+  printf '\n\033[1;34m==> [%d/%d, %d%% complete, %ss elapsed] %s\033[0m\n' \
+    "$STEP_NO" "$TOTAL_STEPS" "$pct" "$((SECONDS - RUN_START))" "$*"
+}
+pass() { finish_step; printf '\033[1;32m%s passed\033[0m\n' "$*"; }
 on_fail() {
-  printf '\n\033[1;31mFAILED: %s\033[0m\n' "$CURRENT_STEP" >&2
+  printf '\n\033[1;31mFAILED at step %d/%d: %s (after %ss)\033[0m\n' \
+    "$STEP_NO" "$TOTAL_STEPS" "$CURRENT_STEP" "$((SECONDS - RUN_START))" >&2
   printf 'Fix it, then rerun: scripts/ci-local.sh %s\n' "$TARGET" >&2
 }
 trap on_fail ERR
@@ -78,4 +104,5 @@ case "$TARGET" in
   *) echo "Unknown target '$TARGET'. Use: all | backend | frontend" >&2; exit 2 ;;
 esac
 
-printf '\n\033[1;32mAll selected CI checks passed. Safe to push.\033[0m\n'
+printf '\n\033[1;32m[%d/%d, 100%% complete] All selected CI checks passed in %ss. Safe to push.\033[0m\n' \
+  "$STEP_NO" "$TOTAL_STEPS" "$((SECONDS - RUN_START))"

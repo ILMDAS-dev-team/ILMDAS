@@ -33,6 +33,9 @@ test("staff layout sends visitors without a staff session to login", () => {
   const layout = read("src/app/(staff)/staff/layout.tsx")
   expect(layout.includes("useAuth()")).toBe(true)
   expect(layout.includes("isStaff(user)")).toBe(true)
+  // Signed in without a staff role: denied in place, not sent back to login (no loop)
+  expect(layout.includes("<AccessDenied />")).toBe(true)
+  expect(layout.includes("if (!user) {")).toBe(true)
   expect(layout.includes('redirect("/login?next=/staff")')).toBe(true)
 })
 
