@@ -53,9 +53,9 @@ def test_audit_record_sanitizes_passwords_and_secrets():
         details={
             "username": "librarian_01",
             "password": TEST_PASSWORD,
-            "apiKey": "key-123",
+            "apiKey": "key-123",  # pragma: allowlist secret
             "api-key": "key-456",
-            "privateKey": "priv-789",
+            "privateKey": "priv-789",  # pragma: allowlist secret
             "authorization": "Bearer xyz",
             "cookie": "sessionid=abc",
             "sessionid": "abc",

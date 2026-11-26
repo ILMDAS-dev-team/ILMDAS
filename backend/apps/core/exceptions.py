@@ -67,7 +67,10 @@ def classify(exc: Exception) -> tuple[str, int, object | None]:
     if isinstance(exc, NotFound | Http404):
         return "not_found", 404, None
     if isinstance(exc, Conflict) or getattr(exc, "status_code", None) == 409:
-        return "conflict", 409, None
+        # A Conflict raised with its own (code-authored, safe) reason passes it on.
+        reason = getattr(exc, "detail", None)
+        has_reason = isinstance(exc, Conflict) and str(reason) != Conflict.default_detail
+        return "conflict", 409, [str(reason)] if has_reason else None
     if isinstance(exc, Throttled):
         return "rate_limit", 429, None
     status_code = getattr(exc, "status_code", 500)

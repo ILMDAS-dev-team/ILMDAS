@@ -99,3 +99,17 @@ describe("RequireRole", () => {
     expect(screen.getByText("Loading...")).toBeInTheDocument()
   })
 })
+
+describe("RequireRole when signed out", () => {
+  test("shows access denied instead of loading forever", () => {
+    ;(useAuth as jest.Mock).mockReturnValue({ user: null, loading: false })
+    render(
+      <RequireRole requireStaff>
+        <div data-testid="protected-content">Protected</div>
+      </RequireRole>
+    )
+    expect(screen.getByText("Access Denied")).toBeInTheDocument()
+    expect(screen.queryByText("Loading...")).toBeNull()
+    expect(screen.queryByTestId("protected-content")).toBeNull()
+  })
+})

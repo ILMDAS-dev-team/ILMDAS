@@ -2,7 +2,7 @@
  * Backend API calls for RBAC (roles and user-role assignment).
  */
 
-import { apiFetch } from "@/lib/api"
+import { apiFetch, csrfHeader, ensureCsrfCookie } from "@/lib/api"
 import type { AuthUser, UserRole } from "@/lib/roles"
 
 export type Role = {
@@ -44,9 +44,10 @@ export async function fetchCurrentUser(): Promise<AuthUser> {
 }
 
 export async function assignRoleToUser(userId: number, roleCode: string): Promise<void> {
+  const csrfToken = await ensureCsrfCookie()
   const { response } = await apiFetch(`/api/v1/users/${userId}/roles/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...csrfHeader(csrfToken) },
     body: JSON.stringify({ role_code: roleCode } as AssignRoleBody),
   })
   if (!response.ok) {
@@ -59,9 +60,15 @@ export async function assignRoleToUser(userId: number, roleCode: string): Promis
 }
 
 export async function removeRoleFromUser(userId: number, roleCode: string): Promise<void> {
+  const csrfToken = await ensureCsrfCookie()
   const { response } = await apiFetch(`/api/v1/users/${userId}/roles/${roleCode}/`, {
     method: "DELETE",
+    headers: csrfHeader(csrfToken),
   })
+  if (response.status === 409) {
+    const body = (await response.json()) as { errors?: string[] }
+    throw new Error(body.errors?.[0] ?? "This role cannot be removed.")
+  }
   if (!response.ok && response.status !== 404) {
     throw new Error(`Failed to remove role: ${response.status}`)
   }

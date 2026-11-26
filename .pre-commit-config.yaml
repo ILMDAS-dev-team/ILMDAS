@@ -31,6 +31,7 @@ repos:
         entry: bash scripts/ci-local.sh
         pass_filenames: false
         always_run: true
+        verbose: true
         stages: [pre-push]
 
   - repo: https://github.com/Yelp/detect-secrets

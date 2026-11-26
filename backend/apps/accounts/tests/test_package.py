@@ -6,7 +6,8 @@ import logging
 
 import pytest
 from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
+from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX, make_password
+from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from rest_framework.test import APIClient
@@ -66,6 +67,44 @@ def test_new_account_gets_member_role_once():
     user = User.objects.create_user(username="fresh", password=TEST_PASSWORD)
     user.save()  # saving again must not add a second member role
     assert list(user.user_roles.values_list("role__code", flat=True)) == [ROLE_MEMBER]
+
+
+def test_password_validators_configured_and_enforce_policy():
+    # Passwords shorter than 12 chars should fail
+    with pytest.raises(ValidationError):
+        validate_password("Short1!")
+
+    # Entirely numeric passwords should fail
+    with pytest.raises(ValidationError):
+        validate_password("123456789012")
+
+    # Common passwords should fail
+    with pytest.raises(ValidationError):
+        validate_password("password123456")
+
+    # Strong password should pass
+    validate_password(TEST_PASSWORD)
+
+
+def test_basic_auth_removed_from_defaults():
+    from django.conf import settings
+
+    classes = settings.REST_FRAMEWORK.get("DEFAULT_AUTHENTICATION_CLASSES", [])
+    assert "rest_framework.authentication.BasicAuthentication" not in classes
+    assert "rest_framework.authentication.SessionAuthentication" in classes
+
+
+@pytest.mark.django_db
+def test_legacy_pbkdf2_hash_still_verifies_and_is_upgraded_to_argon2():
+    """SRS FR-SEC-002 (bcrypt/Argon2): older PBKDF2 hashes keep working and upgrade on login."""
+    user = UserAccount.objects.create_user(username="legacy_hash", password=TEST_PASSWORD)
+    user.password = make_password(TEST_PASSWORD, hasher="pbkdf2_sha256")
+    user.save()
+    assert user.password.startswith("pbkdf2_sha256$")
+
+    assert user.check_password(TEST_PASSWORD) is True
+    user.refresh_from_db()
+    assert user.password.startswith("argon2$")
 
 
 @pytest.mark.django_db
@@ -165,7 +204,7 @@ def test_password_stored_as_secure_one_way_hash_not_raw_password_sec_01():
     assert stored_password is not None
     assert stored_password != raw_password
     assert raw_password not in stored_password
-    assert stored_password.startswith("pbkdf2_sha256$")
+    assert stored_password.startswith("argon2$")
 
     # Database row-level inspection: prove raw password is absent from every column in the stored row
     table_name = connection.ops.quote_name(User._meta.db_table)
@@ -195,14 +234,14 @@ def test_password_hashing_on_create_and_change_sec_01():
     )
     direct_user.save()
     assert TEST_PASSWORD not in direct_user.password
-    assert direct_user.password.startswith("pbkdf2_sha256$")
+    assert direct_user.password.startswith("argon2$")
     assert direct_user.check_password(TEST_PASSWORD) is True
 
     # 2. Password change via direct assignment
     direct_user.password = CHANGED_PASSWORD
     direct_user.save()
     assert CHANGED_PASSWORD not in direct_user.password
-    assert direct_user.password.startswith("pbkdf2_sha256$")
+    assert direct_user.password.startswith("argon2$")
     assert direct_user.check_password(CHANGED_PASSWORD) is True
     assert direct_user.check_password(TEST_PASSWORD) is False
 
@@ -218,7 +257,7 @@ def test_password_hashing_on_create_and_change_sec_01():
     direct_user.save(update_fields=["password"])
     direct_user.refresh_from_db()
     assert PARTIAL_UPDATE_PASSWORD not in direct_user.password
-    assert direct_user.password.startswith("pbkdf2_sha256$")
+    assert direct_user.password.startswith("argon2$")
     assert direct_user.check_password(PARTIAL_UPDATE_PASSWORD) is True
     assert direct_user.check_password(SET_PASSWORD_VALUE) is False
 
@@ -253,7 +292,7 @@ def test_raw_password_is_persisted_with_partial_update_fields_sec_01():
     account.save(update_fields=["status"])
     account.refresh_from_db()
 
-    assert account.password.startswith("pbkdf2_sha256$")
+    assert account.password.startswith("argon2$")
     assert account.check_password(PARTIAL_UPDATE_PASSWORD) is True
     assert account.check_password(TEST_PASSWORD) is False
     assert account.status == UserAccountStatus.INACTIVE
@@ -351,3 +390,17 @@ def test_status_lifecycle_values_activation_and_deactivation_fr_sec_002():
         account.save()
     with pytest.raises(IntegrityError), transaction.atomic():
         UserAccount.objects.filter(pk=account.pk).update(status="invalid_status_value")
+
+
+@pytest.mark.django_db
+def test_hash_from_another_default_hasher_is_kept_on_save():
+    """A stored bcrypt_sha256 hash must not be re-hashed as if it were a plain password."""
+    user = UserAccount.objects.create_user(username="bcrypt_user", password=TEST_PASSWORD)
+    bcrypt_hash = "bcrypt_sha256$$2b$12$" + "a" * 53  # format only; never verified here
+    UserAccount.objects.filter(pk=user.pk).update(password=bcrypt_hash)
+    user.refresh_from_db()
+
+    user.status = UserAccountStatus.SUSPENDED
+    user.save()
+    user.refresh_from_db()
+    assert user.password == bcrypt_hash

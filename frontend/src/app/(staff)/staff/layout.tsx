@@ -4,6 +4,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 import { useAuth } from "@/context/AuthContext"
+import AccessDenied from "@/components/AccessDenied"
 import { LanguageSlot } from "@/components/LanguageSlot"
 import { isSystemAdministrator, isStaff } from "@/lib/roles"
 
@@ -44,8 +45,17 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
     )
   }
 
-  if (!user || !isStaff(user)) {
+  if (!user) {
     redirect("/login?next=/staff")
+  }
+
+  // Signed in without a staff role: show the denial instead of looping back to login.
+  if (!isStaff(user)) {
+    return (
+      <div className="shell">
+        <AccessDenied />
+      </div>
+    )
   }
 
   return (

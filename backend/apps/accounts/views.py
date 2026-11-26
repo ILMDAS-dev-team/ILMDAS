@@ -24,7 +24,7 @@ from apps.accounts.serializers import (
     UserSummarySerializer,
 )
 from apps.audit.models import record_audit_event
-from apps.core.exceptions import InvalidCredentials
+from apps.core.exceptions import Conflict, InvalidCredentials
 
 from .throttling import LoginRateThrottle
 
@@ -122,8 +122,20 @@ class UserRoleRemoveView(APIView):
     def delete(self, request, user_id, role_code):
         target_user = get_object_or_404(User, pk=user_id)
         role = get_object_or_404(Role, code=role_code)
+        assignment = UserRole.objects.filter(user=target_user, role=role)
 
-        deleted, _ = UserRole.objects.filter(user=target_user, role=role).delete()
+        if assignment.exists():
+            # SRS: every active account holds one or more roles.
+            if not target_user.user_roles.exclude(role=role).exists():
+                raise Conflict("A user must keep at least one role.")
+            if role.code == ROLE_SYSTEM_ADMINISTRATOR:
+                # Keep someone able to manage roles: no self-removal, no removing the last admin.
+                if target_user.pk == request.user.pk:
+                    raise Conflict("You cannot remove your own administrator role.")
+                if not UserRole.objects.filter(role=role).exclude(user=target_user).exists():
+                    raise Conflict("At least one system administrator must remain.")
+
+        deleted, _ = assignment.delete()
         if not deleted:
             return Response(
                 {"detail": f"User does not have role '{role_code}'."},

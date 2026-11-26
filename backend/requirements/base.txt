@@ -1,4 +1,5 @@
 Django==5.2.19
+argon2-cffi==25.1.0
 djangorestframework==3.18.2
 django-cors-headers==4.4.0
 dj-database-url==2.2.0
