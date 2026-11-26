@@ -17,9 +17,12 @@ const baseLinks = [
   { href: "/staff/publishing", label: "Publishing" },
   { href: "/staff/reports", label: "Reports" },
   { href: "/staff/administration", label: "Administration" },
+  { href: "/staff/audit", label: "Audit log" },
   { href: "/staff/status", label: "IIIF status" },
   { href: "/logout", label: "Sign out" },
 ]
+
+const ADMIN_ONLY_LINKS = new Set(["/staff/administration", "/staff/audit"])
 
 export default function StaffLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -30,7 +33,7 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
     const admin = isSystemAdministrator(user)
     const staff = isStaff(user)
     const filtered = baseLinks.filter((link) => {
-      if (link.href === "/staff/administration") return admin
+      if (ADMIN_ONLY_LINKS.has(link.href)) return admin
       return staff
     })
     setLinks(filtered)
