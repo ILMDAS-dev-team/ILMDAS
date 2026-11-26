@@ -4,7 +4,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.accounts.models import UserAccountStatus
+from apps.accounts.models import UserAccountStatus, UserRole
 
 UserAccount = get_user_model()
 TEST_PASSWORD = "correct-horse-pass"  # pragma: allowlist secret
@@ -178,6 +178,8 @@ def test_admin_can_edit_role_and_personal_fields():
     model_admin = admin.site._registry[UserAccount]
     edit_fields = {f for _, opts in model_admin.fieldsets for f in opts["fields"]}
     add_fields = {f for _, opts in model_admin.add_fieldsets for f in opts["fields"]}
-    for field in ("role", "email", "first_name", "last_name"):
+    for field in ("email", "first_name", "last_name"):
         assert field in edit_fields
         assert field in add_fields
+    # Roles are assigned through the UserRole inline, not a field on the user.
+    assert any(inline.model is UserRole for inline in model_admin.inlines)

@@ -3,23 +3,33 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import UserAccount
+from .models import UserAccount, UserRole
+
+
+class UserRoleInline(admin.TabularInline):
+    """Assign roles on the user page (ILMDAS-28)."""
+
+    model = UserRole
+    fk_name = "user"
+    extra = 0
+    fields = ("role", "assigned_at", "assigned_by")
+    readonly_fields = ("assigned_at", "assigned_by")
 
 
 @admin.register(UserAccount)
 class UserAccountAdmin(DjangoUserAdmin):
     ordering = ("username",)
-    list_display = ("username", "email", "role", "status", "is_staff", "date_joined", "last_login")
-    list_filter = ("role", "status", "is_staff", "is_superuser")
+    inlines = (UserRoleInline,)
+    list_display = ("username", "email", "status", "is_staff", "date_joined", "last_login")
+    list_filter = ("user_roles__role", "status", "is_staff", "is_superuser")
     search_fields = ("username", "email", "first_name", "last_name")
     fieldsets = (
         (None, {"fields": ("username", "password")}),
         ("Personal info", {"fields": ("first_name", "last_name", "email")}),
         (
-            "Role and status",
+            "Status",
             {
                 "fields": (
-                    "role",
                     "status",
                     "is_staff",
                     "is_superuser",
@@ -42,7 +52,6 @@ class UserAccountAdmin(DjangoUserAdmin):
                     "last_name",
                     "password1",
                     "password2",
-                    "role",
                     "status",
                     "is_staff",
                 ),

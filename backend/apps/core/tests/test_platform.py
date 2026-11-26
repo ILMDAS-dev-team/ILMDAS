@@ -19,8 +19,13 @@ from django.core.management import call_command
 from django.db import IntegrityError
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied, Throttled, ValidationError
 
-from apps.accounts.constants import ROLE_SYSTEM_ADMINISTRATOR
+from apps.accounts.constants import (
+    ROLE_DIGITAL_ARCHIVIST,
+    ROLE_LIBRARIAN,
+    ROLE_SYSTEM_ADMINISTRATOR,
+)
 from apps.accounts.models import Role, UserRole, seed_roles
+from apps.accounts.testing import make_user
 from apps.audit.models import AuditRecord
 from apps.core.content_type import MAX_UPLOAD_SIZE
 from apps.core.exceptions import Conflict, api_exception_handler
@@ -384,9 +389,7 @@ def test_object_upload_maps_storage_failure(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_object_detail_and_not_found(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="viewer", password=DUMMY_PASSWORD, role=Role.LIBRARY_STAFF
-    )
+    user = make_user("viewer", ROLE_LIBRARIAN)
     record = ObjectReference.objects.create(
         object_key="manuscripts/detail",
         reference="s3://ilmdas-files/manuscripts/detail",
@@ -403,9 +406,7 @@ def test_object_detail_and_not_found(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_iiif_status_endpoint(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="iiif", password=DUMMY_PASSWORD, role=Role.LIBRARY_STAFF
-    )
+    user = make_user("iiif", ROLE_LIBRARIAN)
     api_client.force_authenticate(user)
     with patch(
         "apps.core.views.IiifClient.configuration_status",
@@ -568,9 +569,7 @@ def test_object_reference_str():
 def test_upload_existing_object_key_returns_conflict_and_preserves_object(
     api_client, django_user_model
 ):
-    user = django_user_model.objects.create_user(
-        username="archivist", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("archivist", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
     initial_record = ObjectReference.objects.create(
         object_key="archive/existing/file",
@@ -596,9 +595,7 @@ def test_upload_existing_object_key_returns_conflict_and_preserves_object(
 
 @pytest.mark.django_db
 def test_upload_without_object_key_generates_server_key(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="uploader-auto", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("uploader-auto", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
     body = b"generated-content"
     stored = StoredObject(
@@ -711,9 +708,7 @@ def test_anonymous_health_returns_only_overall_status(api_client):
 
 @pytest.mark.django_db
 def test_upload_rejects_path_traversal_keys(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="traversal_user", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("traversal_user", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
     body_b64 = base64.b64encode(b"%PDF-1.4 safe-bytes").decode()
 
@@ -741,9 +736,7 @@ def test_generate_object_key_sanitizes_unsafe_prefix():
 
 @pytest.mark.django_db
 def test_upload_rejects_oversized_payload(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="large_user", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("large_user", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
     oversized_b64 = "A" * (MAX_BASE64_LENGTH + 10)
     response = api_client.post(
@@ -758,9 +751,7 @@ def test_upload_rejects_oversized_payload(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_upload_storage_unavailability_returns_503(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="s3_down_user", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("s3_down_user", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
     body_b64 = base64.b64encode(b"%PDF-1.4 some-data").decode()
     with patch(
@@ -802,9 +793,7 @@ def test_object_storage_delete_graceful_logging():
 
 @pytest.mark.django_db
 def test_upload_rolls_back_storage_on_db_integrity_error(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="rollback_user", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("rollback_user", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
     body = b"%PDF-1.4 data-for-rollback"
     stored = StoredObject(
@@ -835,9 +824,7 @@ def test_upload_rolls_back_storage_on_db_integrity_error(api_client, django_user
 
 @pytest.mark.django_db
 def test_member_receives_403_on_upload(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="regular_member", password=DUMMY_PASSWORD, role=Role.MEMBER
-    )
+    user = make_user("regular_member")
     api_client.force_authenticate(user)
     response = api_client.post(
         "/api/v1/storage/objects/",
@@ -855,9 +842,7 @@ def test_member_receives_403_on_object_detail(api_client, django_user_model):
         reference="s3://ilmdas-files/archive/secret",
         checksum_sha256="abc",
     )
-    user = django_user_model.objects.create_user(
-        username="regular_member2", password=DUMMY_PASSWORD, role=Role.MEMBER
-    )
+    user = make_user("regular_member2")
     api_client.force_authenticate(user)
     response = api_client.get(f"/api/v1/storage/objects/{record.id}/")
     assert response.status_code == 403
@@ -866,9 +851,7 @@ def test_member_receives_403_on_object_detail(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_member_receives_403_on_index_rebuild_and_delete(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="regular_member3", password=DUMMY_PASSWORD, role=Role.MEMBER
-    )
+    user = make_user("regular_member3")
     api_client.force_authenticate(user)
     rebuild_res = api_client.post("/api/v1/search/catalogue-index/")
     delete_res = api_client.delete("/api/v1/search/catalogue-index/")
@@ -880,9 +863,7 @@ def test_member_receives_403_on_index_rebuild_and_delete(api_client, django_user
 
 @pytest.mark.django_db
 def test_staff_receives_403_on_index_rebuild(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="staff_member", password=DUMMY_PASSWORD, role=Role.LIBRARY_STAFF
-    )
+    user = make_user("staff_member", ROLE_LIBRARIAN)
     api_client.force_authenticate(user)
     response = api_client.post("/api/v1/search/catalogue-index/")
     assert response.status_code == 403
@@ -891,9 +872,7 @@ def test_staff_receives_403_on_index_rebuild(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_upload_content_type_magic_bytes_check(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="archivist_magic", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("archivist_magic", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
 
     # Valid PDF magic bytes (%PDF-)
@@ -926,9 +905,7 @@ def test_upload_content_type_magic_bytes_check(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_upload_size_limit_enforced(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="archivist_size", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("archivist_size", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
     large_payload = b"%PDF-" + b"0" * (MAX_UPLOAD_SIZE + 1)
     res = api_client.post(
@@ -943,9 +920,7 @@ def test_upload_size_limit_enforced(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_upload_malware_scan_rejects_eicar(api_client, django_user_model):
-    user = django_user_model.objects.create_user(
-        username="archivist_malware", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
+    user = make_user("archivist_malware", ROLE_DIGITAL_ARCHIVIST)
     api_client.force_authenticate(user)
     eicar_bytes = b"%PDF-" + EICAR_SIGNATURE
     res = api_client.post(
@@ -960,12 +935,8 @@ def test_upload_malware_scan_rejects_eicar(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_presigned_upload_endpoint(api_client, django_user_model):
-    archivist = django_user_model.objects.create_user(
-        username="archivist_presign", password=DUMMY_PASSWORD, role=Role.ARCHIVIST
-    )
-    member = django_user_model.objects.create_user(
-        username="member_presign", password=DUMMY_PASSWORD, role=Role.MEMBER
-    )
+    archivist = make_user("archivist_presign", ROLE_DIGITAL_ARCHIVIST)
+    member = make_user("member_presign")
 
     api_client.force_authenticate(member)
     res_member = api_client.post(
@@ -1005,9 +976,7 @@ def test_presigned_upload_endpoint(api_client, django_user_model):
 
 @pytest.mark.django_db
 def test_sensitive_actions_write_audit_record(api_client, django_user_model):
-    admin = django_user_model.objects.create_user(
-        username="admin_audit", password=DUMMY_PASSWORD, role=Role.ADMINISTRATOR
-    )
+    admin = make_user("admin_audit", ROLE_SYSTEM_ADMINISTRATOR)
     api_client.force_authenticate(admin)
     initial_count = AuditRecord.objects.count()
 
