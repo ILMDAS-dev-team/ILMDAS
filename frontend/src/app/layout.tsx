@@ -1,6 +1,13 @@
 import type { Metadata } from "next"
+import { Ubuntu } from "next/font/google"
 import { AuthProvider } from "@/context/AuthContext"
 import "./globals.css"
+
+const ubuntu = Ubuntu({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+  display: "swap",
+})
 
 export const metadata: Metadata = {
   title: "ILMDAS",
@@ -10,7 +17,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
+      <body className={ubuntu.className}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

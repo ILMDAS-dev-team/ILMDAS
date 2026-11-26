@@ -45,6 +45,14 @@ class AssignRoleSerializer(serializers.Serializer):
         return value
 
 
+def role_list(user) -> list[dict[str, str]]:
+    """The user's roles as [{code, name}], the shape the frontend's AuthUser.roles expects."""
+    return [
+        {"code": ur.role.code, "name": ur.role.name}
+        for ur in user.user_roles.select_related("role").all()
+    ]
+
+
 class UserSummarySerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
 
@@ -53,10 +61,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
         fields = ["id", "username", "email", "roles"]
 
     def get_roles(self, obj):
-        return [
-            {"code": ur.role.code, "name": ur.role.name}
-            for ur in obj.user_roles.select_related("role").all()
-        ]
+        return role_list(obj)
 
 
 # Authentication Serializers (custom User model)
@@ -71,6 +76,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     isStaff = serializers.BooleanField(source="is_library_staff", read_only=True)
     isAdministrator = serializers.BooleanField(source="is_administrator", read_only=True)
     isArchivist = serializers.BooleanField(source="is_archivist", read_only=True)
+    roles = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -81,10 +87,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "status",
-            "role",
+            "roles",
             "created_at",
             "last_login",
             "isStaff",
             "isAdministrator",
             "isArchivist",
         ]
+
+    def get_roles(self, obj):
+        return role_list(obj)

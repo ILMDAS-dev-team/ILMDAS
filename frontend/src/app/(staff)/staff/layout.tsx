@@ -17,6 +17,7 @@ const baseLinks = [
   { href: "/staff/reports", label: "Reports" },
   { href: "/staff/administration", label: "Administration" },
   { href: "/staff/status", label: "IIIF status" },
+  { href: "/logout", label: "Sign out" },
 ]
 
 export default function StaffLayout({ children }: { children: ReactNode }) {
@@ -36,11 +37,15 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
 
   // Do not render children when loading or unauthenticated
   if (loading) {
-    return <div className="shell"><p>Loading...</p></div>
+    return (
+      <div className="shell">
+        <p>Loading...</p>
+      </div>
+    )
   }
 
   if (!user || !isStaff(user)) {
-    redirect("/sign-in")
+    redirect("/login?next=/staff")
   }
 
   return (

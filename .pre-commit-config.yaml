@@ -1,3 +1,5 @@
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
@@ -23,6 +25,13 @@ repos:
         entry: python scripts/precommit_prettier.py
         pass_filenames: false
         files: ^frontend/
+      - id: ci-local
+        name: Local CI (same checks as GitHub Actions)
+        language: system
+        entry: bash scripts/ci-local.sh
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0

@@ -28,7 +28,7 @@ from .content_type import ALLOWED_MIME_TYPES, MAX_UPLOAD_SIZE, validate_upload_c
 from .exceptions import Conflict, ServiceUnavailable
 from .iiif import IiifClient
 from .models import ObjectReference
-from .permissions import CanManageSearchIndex, CanUploadArchiveObject, CanViewObjectDetail
+from .permissions import CanUploadArchiveObject, CanViewObjectDetail
 from .scanner import MalwareScanStatus, scan_object
 from .search import CatalogueIndex
 from .storage import ObjectStorage, ObjectStorageConflictError, ObjectStorageError
@@ -142,7 +142,7 @@ class ErrorProbeView(APIView):
 
 
 class ObjectUploadView(APIView):
-    permission_classes = [IsAuthenticated, HasRole, CanUploadArchiveObject]
+    permission_classes = [IsAuthenticated, HasRole]
     required_roles = [ROLE_SYSTEM_ADMINISTRATOR, ROLE_DIGITAL_ARCHIVIST]
     throttle_classes = [UploadRateThrottle]
 
@@ -321,7 +321,7 @@ class IiifStatusView(APIView):
 
 
 class CatalogueIndexView(APIView):
-    permission_classes = [IsAuthenticated, HasRole, CanManageSearchIndex]
+    permission_classes = [IsAuthenticated, HasRole]
     required_role = ROLE_SYSTEM_ADMINISTRATOR
 
     def post(self, request):

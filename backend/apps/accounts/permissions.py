@@ -36,14 +36,14 @@ class HasRole(BasePermission):
         # Check for multiple required roles first
         required_roles = getattr(view, "required_roles", None)
         if required_roles is not None:
-            return user.user_roles.filter(role__code__in=required_roles).exists()
+            return user.has_any_role(*required_roles)
 
         # Fall back to single required role
         required_role = getattr(view, "required_role", None)
         if required_role is None:
             return True
 
-        return user.user_roles.filter(role__code=required_role).exists()
+        return user.has_any_role(required_role)
 
 
 __all__ = [

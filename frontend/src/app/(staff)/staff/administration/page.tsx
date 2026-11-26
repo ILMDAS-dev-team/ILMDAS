@@ -1,14 +1,12 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/context/AuthContext"
 import { fetchRoles, fetchUsers, assignRoleToUser, removeRoleFromUser } from "@/lib/rbac"
 import type { UserSummary } from "@/lib/rbac"
 import { ALL_ROLE_CODES, ROLE_NAMES, ROLE_SYSTEM_ADMINISTRATOR } from "@/lib/roles"
 
-type RoleAssignmentProps = { children?: ReactNode }
-
-export default function RoleAssignmentPage({ children }: RoleAssignmentProps) {
+export default function RoleAssignmentPage() {
   const { isSystemAdministrator, loading } = useAuth()
   const [users, setUsers] = useState<UserSummary[]>([])
   const [loadingData, setLoadingData] = useState(true)
@@ -150,8 +148,6 @@ export default function RoleAssignmentPage({ children }: RoleAssignmentProps) {
           </li>
         ))}
       </ul>
-
-      {children}
     </section>
   )
 }

@@ -3,6 +3,7 @@
 from django.urls import path
 
 from .views import (
+    CsrfCookieView,
     CurrentUserRolesView,
     LoginView,
     LogoutView,
@@ -28,8 +29,9 @@ urlpatterns = [
         UserRoleRemoveView.as_view(),
         name="user-role-remove",
     ),
-    # Authentication endpoints
+    # Authentication endpoints (ILMDAS-27)
+    path("csrf/", CsrfCookieView.as_view(), name="auth-csrf"),
     path("login/", LoginView.as_view(), name="auth-login"),
     path("logout/", LogoutView.as_view(), name="auth-logout"),
-    path("session/", SessionView.as_view(), name="auth-session"),
+    path("me/", SessionView.as_view(), name="auth-me"),
 ]

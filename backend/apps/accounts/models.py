@@ -8,7 +8,15 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 
-from .constants import ALL_ROLE_CODES, ROLE_DESCRIPTIONS, ROLE_NAMES
+from .constants import (
+    ALL_ROLE_CODES,
+    ROLE_DESCRIPTIONS,
+    ROLE_DIGITAL_ARCHIVIST,
+    ROLE_LIBRARIAN,
+    ROLE_MEMBER,
+    ROLE_NAMES,
+    ROLE_SYSTEM_ADMINISTRATOR,
+)
 
 
 class Role(models.Model):
@@ -79,8 +87,6 @@ class UserAccountStatus(models.TextChoices):
     DEACTIVATED = "deactivated", "Deactivated"
 
 
-
-
 class User(AbstractUser):
     """User account entity adhering to FR-SEC-002 with secure one-way password hashing."""
 
@@ -90,12 +96,6 @@ class User(AbstractUser):
         default=UserAccountStatus.ACTIVE,
         db_index=True,
         help_text="Account lifecycle status (active, inactive, suspended, deactivated, pending).",
-    )
-    role = models.CharField(
-        max_length=32,
-        choices=Role.choices,
-        default=Role.MEMBER,
-        db_index=True,
     )
     created_at = models.DateTimeField(
         default=timezone.now,
@@ -132,19 +132,25 @@ class User(AbstractUser):
 
     @property
     def is_member(self) -> bool:
-        return self.role == Role.MEMBER
+        return self.has_any_role(ROLE_MEMBER)
 
     @property
     def is_library_staff(self) -> bool:
-        return self.role in (Role.LIBRARY_STAFF, Role.ADMINISTRATOR)
+        return self.has_any_role(ROLE_LIBRARIAN, ROLE_SYSTEM_ADMINISTRATOR)
 
     @property
     def is_archivist(self) -> bool:
-        return self.role in (Role.ARCHIVIST, Role.ADMINISTRATOR)
+        return self.has_any_role(ROLE_DIGITAL_ARCHIVIST, ROLE_SYSTEM_ADMINISTRATOR)
 
     @property
     def is_administrator(self) -> bool:
-        return self.role == Role.ADMINISTRATOR or self.is_superuser
+        return self.is_superuser or self.has_any_role(ROLE_SYSTEM_ADMINISTRATOR)
+
+    def has_any_role(self, *codes: str) -> bool:
+        """True if the user holds at least one of the given role codes (UserRole table)."""
+        if not self.pk:
+            return False
+        return self.user_roles.filter(role__code__in=codes).exists()
 
     def activate(self) -> None:
         """Activate the user account."""
@@ -182,7 +188,14 @@ class User(AbstractUser):
         ):
             self.is_active = False
 
+        is_new = self._state.adding
         super().save(*args, **kwargs)
+
+        if is_new:
+            # Every new account starts as a member; staff roles are assigned on top.
+            member = Role.objects.filter(code=ROLE_MEMBER).first()
+            if member is not None:
+                UserRole.objects.get_or_create(user=self, role=member)
 
 
 UserAccount = User

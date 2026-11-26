@@ -5,7 +5,8 @@ export function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/staff")) {
     const sessionId = request.cookies.get("sessionid")?.value
     if (!sessionId) {
-      const signInUrl = new URL("/sign-in", request.url)
+      const signInUrl = new URL("/login", request.url)
+      signInUrl.searchParams.set("next", request.nextUrl.pathname)
       return NextResponse.redirect(signInUrl)
     }
   }

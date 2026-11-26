@@ -5,6 +5,7 @@ const links = [
   { href: "/", label: "Home" },
   { href: "/opac", label: "OPAC" },
   { href: "/about", label: "About" },
+  { href: "/login", label: "Sign in" },
 ]
 
 export default function PublicLayout({ children }: { children: ReactNode }) {

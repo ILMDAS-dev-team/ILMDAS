@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -21,6 +24,7 @@ from apps.accounts.serializers import (
     UserSummarySerializer,
 )
 from apps.audit.models import record_audit_event
+from apps.core.exceptions import InvalidCredentials
 
 from .throttling import LoginRateThrottle
 
@@ -149,9 +153,26 @@ class UserRoleRemoveView(APIView):
 # Authentication Views
 
 
+class CsrfCookieView(APIView):
+    """Issue a CSRF cookie for browser clients before login."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    @method_decorator(ensure_csrf_cookie)
+    def get(self, request):
+        return Response({"csrfToken": get_token(request)})
+
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [LoginRateThrottle]
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # DRF only checks CSRF for already-authenticated sessions, so an anonymous
+        # login POST would skip it. Enforce it here (403 through the shared error contract).
+        SessionAuthentication().enforce_csrf(request)
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -168,7 +189,7 @@ class LoginView(APIView):
                 object_id=username,
                 request=request,
             )
-            raise AuthenticationFailed("Invalid username or password.")
+            raise InvalidCredentials()
 
         login(request, user)
         record_audit_event(
@@ -178,7 +199,9 @@ class LoginView(APIView):
             object_id=str(user.id),
             request=request,
         )
-        return Response(UserProfileSerializer(user).data)
+        data = UserProfileSerializer(user).data
+        data["authenticated"] = True
+        return Response(data)
 
 
 class LogoutView(APIView):
@@ -193,11 +216,13 @@ class LogoutView(APIView):
             request=request,
         )
         logout(request)
-        return Response({"status": "logged_out"})
+        return Response({"status": "logged_out", "authenticated": False})
 
 
 class SessionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserProfileSerializer(request.user).data)
+        data = UserProfileSerializer(request.user).data
+        data["authenticated"] = True
+        return Response(data)

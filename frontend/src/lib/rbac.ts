@@ -37,10 +37,10 @@ export async function fetchUsers(): Promise<UserSummary[]> {
 }
 
 export async function fetchCurrentUser(): Promise<AuthUser> {
-  const { response } = await apiFetch("/api/v1/auth/session/")
+  const { response } = await apiFetch("/api/v1/auth/me/")
   if (!response.ok) throw new Error(`Failed to fetch session: ${response.status}`)
-  const body = (await response.json()) as { authenticated: boolean; user: AuthUser }
-  return body.user
+  // /auth/me/ returns the profile directly: { id, username, email, roles, ... }
+  return (await response.json()) as AuthUser
 }
 
 export async function assignRoleToUser(userId: number, roleCode: string): Promise<void> {

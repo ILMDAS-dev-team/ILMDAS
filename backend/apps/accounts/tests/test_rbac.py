@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from unittest.mock import patch
 
-from django.contrib.auth.models import User
 from django.db import IntegrityError
 
 from apps.accounts.constants import (
@@ -17,18 +16,20 @@ from apps.accounts.constants import (
     ROLE_MEMBER,
     ROLE_SYSTEM_ADMINISTRATOR,
 )
-from apps.accounts.models import Role, UserRole, seed_roles
+from apps.accounts.models import Role, User, UserRole, seed_roles
+from apps.accounts.testing import DEFAULT_TEST_PASSWORD
 from apps.core.search import CatalogueIndex
 from apps.core.storage import StoredObject
 
 
 def _make_user(username: str) -> User:
-    return User.objects.create_user(username=username, password="local-only")
+    return User.objects.create_user(username=username, password=DEFAULT_TEST_PASSWORD)
 
 
 def _assign(user: User, role_code: str) -> None:
+    # get_or_create: every new account already holds the member role.
     role = Role.objects.get(code=role_code)
-    UserRole.objects.create(user=user, role=role)
+    UserRole.objects.get_or_create(user=user, role=role)
 
 
 def _has_role(user: User, role_code: str) -> bool:
@@ -103,9 +104,10 @@ def test_user_can_have_multiple_roles():
 def test_duplicate_user_role_assignment_prevented():
     seed_roles()
     user = _make_user("duprole")
-    _assign(user, ROLE_MEMBER)
+    librarian = Role.objects.get(code=ROLE_LIBRARIAN)
+    UserRole.objects.create(user=user, role=librarian)
     try:
-        _assign(user, ROLE_MEMBER)
+        UserRole.objects.create(user=user, role=librarian)
         raise AssertionError("Expected IntegrityError for duplicate user-role")
     except IntegrityError:
         pass
