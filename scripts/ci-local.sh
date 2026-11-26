@@ -6,7 +6,7 @@
 #   scripts/ci-local.sh frontend   frontend lint + tests only
 # Stops at the first failing step, like CI. The smoke jobs are skipped because CI disables them.
 
-set -euo pipefail
+set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${1:-all}"
@@ -20,8 +20,14 @@ else
   exit 1
 fi
 
-step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
+CURRENT_STEP="setup"
+step() { CURRENT_STEP="$*"; printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 pass() { printf '\033[1;32m%s passed\033[0m\n' "$*"; }
+on_fail() {
+  printf '\n\033[1;31mFAILED: %s\033[0m\n' "$CURRENT_STEP" >&2
+  printf 'Fix it, then rerun: scripts/ci-local.sh %s\n' "$TARGET" >&2
+}
+trap on_fail ERR
 
 backend() {
   cd "$ROOT/backend"
