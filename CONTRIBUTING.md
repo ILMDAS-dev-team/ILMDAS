@@ -42,8 +42,37 @@ those values in code or fixtures.
 - Prefer conventional commit subjects (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`).
 - Local default: Django in Docker, Next.js native (see
   `docs/ILMDAS_Dev_Local_Setup.md`).
-- Install hooks once: `pre-commit install`. Hooks run Ruff, ESLint, Prettier, and
-  secret scanning. They do not run mypy, pytest, or `tsc`.
+- Install the git hooks once (see below). They catch CI failures locally, which
+  saves our GitHub Actions minutes.
+
+## Git hooks and local CI
+
+`pre-commit` is a host tool, even though Django runs in Docker. Install it once in
+a host virtualenv, then install both hooks from the repo root (Git Bash on Windows):
+
+```bash
+cd backend
+python -m venv .venv                 # skip if backend/.venv already exists
+source .venv/Scripts/activate        # macOS/Linux: source .venv/bin/activate
+pip install -r requirements/development.txt   # provides pre-commit and the CI tools
+cd ..
+pre-commit install                        # quick checks on every commit
+pre-commit install --hook-type pre-push   # full local CI on every push
+```
+
+`pre-commit install` alone sets up only the commit hook. The pre-push hook needs
+`--hook-type pre-push`. Check both exist with `ls .git/hooks/pre-commit .git/hooks/pre-push`.
+
+| When | What runs |
+| --- | --- |
+| `git commit` | Ruff, ESLint, Prettier, secret scan, whitespace and YAML/JSON checks |
+| `git push` | `scripts/ci-local.sh`: the four CI jobs (backend lint, mypy, dependency audit, tests with 80% coverage; frontend lint, npm audit, Jest, production build). A failure cancels the push. |
+
+Run the local CI by hand at any time: `scripts/ci-local.sh` (everything),
+`scripts/ci-local.sh backend`, or `scripts/ci-local.sh frontend`. It shows
+progress and names the step that failed. The frontend needs `npm ci` in
+`frontend/` first. Skip the push hook once with `git push --no-verify`, for urgent
+cases only, since GitHub CI still runs.
 
 ## PR checklist
 
