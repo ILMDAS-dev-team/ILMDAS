@@ -23,7 +23,7 @@ from apps.accounts.serializers import (
     UserProfileSerializer,
     UserSummarySerializer,
 )
-from apps.audit.models import record_audit_event
+from apps.audit.models import AuditOutcome, record_audit_event
 from apps.core.exceptions import Conflict, InvalidCredentials
 
 from .throttling import LoginRateThrottle
@@ -200,6 +200,7 @@ class LoginView(APIView):
                 object_type="user",
                 object_id=username,
                 request=request,
+                outcome=AuditOutcome.FAILURE,
             )
             raise InvalidCredentials()
 
