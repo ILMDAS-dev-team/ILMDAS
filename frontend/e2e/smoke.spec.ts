@@ -33,7 +33,6 @@ test("public homepage loads with navigation and no staff links", async ({ page }
     page.getByRole("img", { name: "Oromo Irreechaa thanks-giving festival" })
   ).toBeVisible()
   await expect(page.getByRole("contentinfo")).toBeVisible()
-  await expect(page.getByRole("contentinfo").getByRole("link", { name: "YouTube" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Administration" })).toHaveCount(0)
   await expect(page.locator('a[href="/staff"]')).toHaveCount(0)
 })

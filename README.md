@@ -25,7 +25,7 @@ Loan periods, fine rates, membership fees, payment and notification providers, t
 ilmdas/
 ├── backend/                  # Django project
 │   ├── apps/                 # accounts, catalogue, circulation, archive,
-│   │                         # publishing, payments, audit, and core
+│   │                         # publishing, payments, audit, core and homepage
 │   ├── config/settings/      # base, development, test, production
 │   ├── requirements/         # base, development, production
 │   ├── .env.example          # variable names only (optional host path)
@@ -42,7 +42,8 @@ ilmdas/
 │   ├── ILMDAS_Dev_Local_Setup.md
 │   ├── ILMDAS_Team_CI-CD.md
 │   ├── ILMDAS_Setup_Verification_Guide.md
-│   └── ILMDAS_Tech_Lead_Env_Setup.md
+│   ├── ILMDAS_Tech_Lead_Env_Setup.md
+│   └── ILMDAS_Public_Homepage.md
 ├── .github/workflows/ci-cd.yml
 ├── codecov.yml
 ├── CONTRIBUTING.md

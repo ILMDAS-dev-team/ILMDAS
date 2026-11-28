@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 
 from apps.homepage.models import (
     ContentSection,
@@ -51,3 +52,13 @@ def test_resource_strings_and_defaults():
     )
     assert str(resource) == "Oral history"
     assert resource.access == FeaturedResource.Access.PUBLIC
+
+
+@pytest.mark.django_db
+def test_only_one_homepage_can_be_published():
+    Homepage.objects.create(hero_title="Published", is_published=True)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Homepage.objects.create(hero_title="Second published", is_published=True)
+
+    assert Homepage.objects.filter(is_published=True).count() == 1

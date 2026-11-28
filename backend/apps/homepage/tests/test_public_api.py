@@ -6,6 +6,8 @@ from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounts.testing import make_user
@@ -19,6 +21,7 @@ from apps.homepage.models import (
     PopularSearch,
     ResourceCategory,
 )
+from apps.homepage.services import build_homepage_payload
 
 HOME_URL = "/api/v1/website/home/"
 
@@ -169,3 +172,40 @@ def test_homepage_without_published_configuration_still_returns_sections(api_cli
     assert response.data["hero"]["title"] == ""
     assert response.data["hero"]["popularSearches"] == []
     assert response.data["offers"]["title"] == "What We Offer"
+
+
+@pytest.mark.django_db
+def test_public_lists_are_bounded(api_client, public_content):
+    for index in range(6):
+        FeaturedResource.objects.create(
+            title=f"Extra resource {index}",
+            resource_type=FeaturedResource.ResourceType.EBOOK,
+            source=FeaturedResource.Source.CATALOGUE,
+            source_id=f"catalogue-extra-{index}",
+            detail_path=f"/opac/extra-{index}/",
+            sort_order=index + 2,
+            is_published=True,
+        )
+        InstitutionalUpdate.objects.create(
+            title=f"Extra update {index}",
+            is_published=True,
+            published_at=timezone.now() - timedelta(minutes=index + 1),
+        )
+
+    payload = api_client.get(HOME_URL).data
+
+    assert len(payload["featuredResources"]) == 6
+    assert len(payload["updates"]) == 6
+
+
+@pytest.mark.django_db
+def test_section_cards_are_prefetched_once(public_content):
+    with CaptureQueriesContext(connection) as queries:
+        build_homepage_payload("en")
+
+    card_queries = [
+        query["sql"]
+        for query in queries.captured_queries
+        if 'FROM "homepage_contentcard"' in query["sql"]
+    ]
+    assert len(card_queries) == 1

@@ -6,6 +6,7 @@ import { SocialLinks } from "@/components/SocialLinks"
 import { useLanguage } from "@/context/LanguageContext"
 import { useWebsite } from "@/context/WebsiteContext"
 import { BRAND_LOGO, PROJECT_NAME, PROJECT_ORGANISATION } from "@/lib/brand"
+import { isSocialIcon } from "@/lib/socialPlatforms"
 import type { FooterLink } from "@/lib/website"
 
 export function SiteFooter() {
@@ -43,11 +44,15 @@ export function SiteFooter() {
           <strong>{PROJECT_NAME}</strong>
           <small>{PROJECT_ORGANISATION}</small>
           <p>{homepage.footer.description || t("footer.description")}</p>
-          <SocialLinks className="footer-social" />
+          <SocialLinks className="footer-social" links={groups.connect ?? []} />
         </div>
         {group("quick_links", t("footer.quickLinks"), groups.quick_links)}
         {group("resources", t("footer.resources"), groups.resources)}
-        {group("connect", t("footer.connect"), groups.connect)}
+        {group(
+          "connect",
+          t("footer.connect"),
+          (groups.connect ?? []).filter((link) => !isSocialIcon(link.icon))
+        )}
       </div>
       <div className="footer-bottom">
         <span>

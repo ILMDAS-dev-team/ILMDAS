@@ -61,6 +61,23 @@ def test_manager_can_publish_homepage_and_updated_by_is_set(api_client):
 
 
 @pytest.mark.django_db
+def test_second_published_homepage_is_rejected(api_client):
+    manager = make_user("second_homepage_editor", ROLE_MANAGER)
+    api_client.force_authenticate(manager)
+    Homepage.objects.create(hero_title="Published", is_published=True)
+
+    response = api_client.post(
+        HOMEPAGE_URL,
+        {"hero_title": "Another published homepage", "is_published": True},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "is_published" in response.data["errors"]
+    assert Homepage.objects.filter(is_published=True).count() == 1
+
+
+@pytest.mark.django_db
 def test_invalid_translation_and_unsafe_link_are_rejected(api_client):
     manager = make_user("invalid_editor", ROLE_MANAGER)
     api_client.force_authenticate(manager)

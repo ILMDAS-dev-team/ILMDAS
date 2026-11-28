@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db.models import Prefetch
 from django.utils import timezone
 
 from .models import (
@@ -16,6 +17,8 @@ from .models import (
     ResourceCategory,
 )
 from .translation import localized
+
+PUBLIC_LIST_LIMIT = 6
 
 
 def _empty_section() -> dict[str, Any]:
@@ -34,7 +37,7 @@ def _card_payload(card: ContentCard, language: str) -> dict[str, Any]:
 
 
 def _section_payload(section: ContentSection, language: str) -> dict[str, Any]:
-    cards = section.cards.filter(is_published=True)
+    cards = section.cards.all()
     return {
         "title": localized(section, "title", language),
         "subtitle": localized(section, "subtitle", language),
@@ -49,7 +52,9 @@ def build_homepage_payload(language: str) -> dict[str, Any]:
         ContentSection.Kind.LEARNING: _empty_section(),
         ContentSection.Kind.HERITAGE: _empty_section(),
     }
-    for section in ContentSection.objects.filter(is_published=True).prefetch_related("cards"):
+    for section in ContentSection.objects.filter(is_published=True).prefetch_related(
+        Prefetch("cards", queryset=ContentCard.objects.filter(is_published=True))
+    ):
         if section.kind in sections:
             sections[section.kind] = _section_payload(section, language)
 
@@ -119,7 +124,7 @@ def build_homepage_payload(language: str) -> dict[str, Any]:
         }
         for item in FeaturedResource.objects.filter(
             is_published=True, access=FeaturedResource.Access.PUBLIC
-        )
+        )[:PUBLIC_LIST_LIMIT]
     ]
 
     updates = [
@@ -135,7 +140,7 @@ def build_homepage_payload(language: str) -> dict[str, Any]:
         }
         for item in InstitutionalUpdate.objects.filter(
             is_published=True, published_at__lte=timezone.now()
-        )
+        )[:PUBLIC_LIST_LIMIT]
     ]
 
     footer_groups: dict[str, list[dict[str, Any]]] = {

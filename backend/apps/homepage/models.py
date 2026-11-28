@@ -57,6 +57,13 @@ class Homepage(TranslatedContent):
         ordering = ["-updated_at"]
         verbose_name = "Homepage"
         verbose_name_plural = "Homepage"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_published"],
+                condition=models.Q(is_published=True),
+                name="homepage_single_published",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.hero_title

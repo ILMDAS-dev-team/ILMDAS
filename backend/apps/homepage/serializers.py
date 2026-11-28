@@ -59,6 +59,18 @@ class HomepageSerializer(TranslationValidatorMixin, serializers.ModelSerializer)
         ]
         read_only_fields = ["id", "updated_at", "updated_by"]
 
+    def validate_is_published(self, value: bool) -> bool:
+        """Keep the public homepage unambiguous; the database enforces this too."""
+        if value:
+            published = Homepage.objects.filter(is_published=True)
+            if self.instance is not None and self.instance.pk is not None:
+                published = published.exclude(pk=self.instance.pk)
+            if published.exists():
+                raise serializers.ValidationError(
+                    "Unpublish the current homepage before publishing another one."
+                )
+        return value
+
 
 class PopularSearchSerializer(TranslationValidatorMixin, serializers.ModelSerializer):
     class Meta:

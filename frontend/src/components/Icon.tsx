@@ -22,7 +22,10 @@ const paths: Record<string, string> = {
   youtube: "M3 8a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8Zm6 0 7 4-7 4V8Z",
   instagram:
     "M4 8a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Zm4 0h8v8H8V8Zm8-1h.01",
-  x: "M4 4h4l12 16h-4L4 4Zm16 0-6 6.5M4 20l6-6.5",
+  telegram: "M21 4 3 11l6 2.5L12 21l3-7 6-10ZM9 13.5 21 4",
+  tiktok:
+    "M14 3v11.5a4.5 4.5 0 1 1-4.5-4.5c.5 0 1 .08 1.5.23V6.7A7 7 0 1 0 17 13V8.2a6 6 0 0 0 4 1.3V6a4 4 0 0 1-4-4h-3Z",
+  linkedin: "M6 9v10M6 6.5v.01M11 19V9m0 3a3 3 0 0 1 6 0v7M11 13v6",
 }
 
 export function Icon({ name, ...props }: { name: string } & SVGProps<SVGSVGElement>) {

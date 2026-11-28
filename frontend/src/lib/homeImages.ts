@@ -1,9 +1,9 @@
 /** Local homepage images supplied in `frontend/Images`. */
 
-import collectionImage from "../../Images/images.jpeg"
-import communityImage from "../../Images/images (1).jpeg"
-import libraryImage from "../../Images/images (2).jpeg"
-import irreechaaImage from "../../Images/oromo-irreechaa-thanks-giving-festival.webp"
+import collectionImage from "../../Images/collection-highlights.jpeg"
+import communityImage from "../../Images/community-knowledge.jpeg"
+import irreechaaImage from "../../Images/irreechaa-festival.webp"
+import libraryImage from "../../Images/library-and-archive.jpeg"
 
 export type HomeSlideImage = {
   key: string
