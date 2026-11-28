@@ -9,6 +9,7 @@ from django.db import IntegrityError
 
 from apps.accounts.constants import (
     ROLE_DIGITAL_ARCHIVIST,
+    ROLE_GUEST,
     ROLE_INTEGRATION_ADMINISTRATOR,
     ROLE_JOURNAL_EDITOR,
     ROLE_LIBRARIAN,
@@ -27,7 +28,7 @@ def _make_user(username: str) -> User:
 
 
 def _assign(user: User, role_code: str) -> None:
-    # get_or_create: every new account already holds the member role.
+    # get_or_create: the role may already be held (every new account holds guest).
     role = Role.objects.get(code=role_code)
     UserRole.objects.get_or_create(user=user, role=role)
 
@@ -42,7 +43,7 @@ import pytest  # noqa: E402
 
 
 @pytest.mark.django_db
-def test_seven_roles_exist_after_seed():
+def test_all_roles_exist_after_seed():
     seed_roles()
     codes = set(Role.objects.values_list("code", flat=True))
     expected = {
@@ -53,6 +54,7 @@ def test_seven_roles_exist_after_seed():
         ROLE_MEMBER,
         ROLE_MANAGER,
         ROLE_INTEGRATION_ADMINISTRATOR,
+        ROLE_GUEST,
     }
     assert codes == expected
 
@@ -292,12 +294,12 @@ def test_last_system_administrator_cannot_be_removed(api_client):
 def test_user_must_keep_at_least_one_role(api_client):
     seed_roles()
     admin = _admin("role_admin")
-    member = _make_user("only_member")  # holds just the automatic member role
+    guest = _make_user("only_guest")  # holds just the automatic guest role
     api_client.force_authenticate(admin)
-    response = api_client.delete(f"/api/v1/users/{member.id}/roles/{ROLE_MEMBER}/")
+    response = api_client.delete(f"/api/v1/users/{guest.id}/roles/{ROLE_GUEST}/")
     assert response.status_code == 409
     assert response.data["errors"] == ["A user must keep at least one role."]
-    assert _has_role(member, ROLE_MEMBER)
+    assert _has_role(guest, ROLE_GUEST)
 
 
 @pytest.mark.django_db

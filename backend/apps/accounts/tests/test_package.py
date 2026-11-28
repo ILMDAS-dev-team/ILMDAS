@@ -14,6 +14,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.constants import (
     ROLE_DIGITAL_ARCHIVIST,
+    ROLE_GUEST,
     ROLE_LIBRARIAN,
     ROLE_MEMBER,
     ROLE_SYSTEM_ADMINISTRATOR,
@@ -40,16 +41,21 @@ def test_custom_user_model_defined_and_role_properties():
     user_model = get_user_model()
     assert user_model is User
 
-    member = make_user("member_test")
+    guest = make_user("guest_test")
+    assert guest.is_guest is True
+    assert guest.is_member is False
+    assert guest.is_library_staff is False
+    assert guest.is_archivist is False
+    assert guest.is_administrator is False
+
+    member = make_user("member_test", ROLE_MEMBER)
     assert member.is_member is True
-    assert member.is_library_staff is False
-    assert member.is_archivist is False
-    assert member.is_administrator is False
+    assert member.is_guest is False
 
     staff = make_user("staff_test", ROLE_LIBRARIAN)
     assert staff.is_library_staff is True
     assert staff.is_archivist is False
-    assert staff.is_member is True  # every account is also a member
+    assert staff.is_member is False  # staff become members only through a membership
 
     archivist = make_user("archivist_test", ROLE_DIGITAL_ARCHIVIST)
     assert archivist.is_archivist is True
@@ -62,11 +68,11 @@ def test_custom_user_model_defined_and_role_properties():
 
 
 @pytest.mark.django_db
-def test_new_account_gets_member_role_once():
+def test_new_account_gets_guest_role_once():
     seed_roles()
     user = User.objects.create_user(username="fresh", password=TEST_PASSWORD)
-    user.save()  # saving again must not add a second member role
-    assert list(user.user_roles.values_list("role__code", flat=True)) == [ROLE_MEMBER]
+    user.save()  # saving again must not add a second guest role
+    assert list(user.user_roles.values_list("role__code", flat=True)) == [ROLE_GUEST]
 
 
 def test_password_validators_configured_and_enforce_policy():

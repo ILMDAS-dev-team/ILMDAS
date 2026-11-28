@@ -14,6 +14,7 @@ from .constants import (
     ALL_ROLE_CODES,
     ROLE_DESCRIPTIONS,
     ROLE_DIGITAL_ARCHIVIST,
+    ROLE_GUEST,
     ROLE_LIBRARIAN,
     ROLE_MEMBER,
     ROLE_NAMES,
@@ -65,7 +66,7 @@ class UserRole(models.Model):
 
 
 def seed_roles() -> None:
-    """Create the seven named ILMDAS roles if they do not already exist.
+    """Create the named ILMDAS roles if they do not already exist.
 
     Idempotent: re-running creates no duplicates.
     """
@@ -143,6 +144,11 @@ class User(AbstractUser):
         return self.has_any_role(ROLE_MEMBER)
 
     @property
+    def is_guest(self) -> bool:
+        """A registered account with no member role (ILMDAS-550)."""
+        return not self.is_member
+
+    @property
     def is_library_staff(self) -> bool:
         return self.has_any_role(ROLE_LIBRARIAN, ROLE_SYSTEM_ADMINISTRATOR)
 
@@ -208,10 +214,11 @@ class User(AbstractUser):
         super().save(*args, **kwargs)
 
         if is_new:
-            # Every new account starts as a member; staff roles are assigned on top.
-            member = Role.objects.filter(code=ROLE_MEMBER).first()
-            if member is not None:
-                UserRole.objects.get_or_create(user=self, role=member)
+            # Every new account starts as a guest (ILMDAS-550). Staff roles are added on
+            # top, and the member role comes only from an approved membership (ILMDAS-554).
+            guest = Role.objects.filter(code=ROLE_GUEST).first()
+            if guest is not None:
+                UserRole.objects.get_or_create(user=self, role=guest)
 
 
 UserAccount = User

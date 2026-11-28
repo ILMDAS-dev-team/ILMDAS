@@ -10,7 +10,7 @@ DEFAULT_TEST_PASSWORD = "Test@123456!"  # noqa: S105  # pragma: allowlist secret
 def make_user(
     username: str, *role_codes: str, password: str = DEFAULT_TEST_PASSWORD, **extra
 ) -> User:
-    """Create a user holding the given role codes (plus member, which every account gets)."""
+    """Create a user holding the given role codes (plus guest, which every account gets)."""
     seed_roles()
     user = User.objects.create_user(username=username, password=password, **extra)
     for code in role_codes:

@@ -100,6 +100,7 @@ INSTALLED_APPS = [
     "apps.archive",
     "apps.publishing",
     "apps.payments",
+    "apps.membership",
 ]
 
 MIDDLEWARE = [
@@ -153,8 +154,29 @@ REST_FRAMEWORK = {
         "user": "1000/day",
         "login": "5/minute",
         "upload": "20/minute",
+        "registration": "10/hour",
     },
 }
+
+# Registration and invite emails (ILMDAS-549). The provider is an open decision
+# (ILMDAS-119): Django's email backend is the adapter, so a provider only needs settings.
+# Development prints emails to the console; production defaults to SMTP.
+# Blank values (as in .env.example) fall back to the defaults.
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND") or "django.core.mail.backends.console.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST") or "localhost"
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT") or "25")
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = (os.environ.get("EMAIL_USE_TLS") or "false").strip().lower() in (
+    "true",
+    "1",
+    "yes",
+)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or "ILMDAS <no-reply@localhost>"
+# Links in emails point at the Next.js frontend.
+FRONTEND_BASE_URL = (os.environ.get("FRONTEND_BASE_URL") or "http://localhost:3010").rstrip("/")
+# Invite and email-verification links expire after this many seconds (3 days).
+PASSWORD_RESET_TIMEOUT = int(os.environ.get("ACCOUNT_LINK_TIMEOUT_SECONDS") or str(3 * 24 * 3600))
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip()

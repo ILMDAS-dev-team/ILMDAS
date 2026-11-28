@@ -31,5 +31,7 @@ REST_FRAMEWORK = {
         "user": "1000/minute",
         "login": "1000/minute",
         "upload": "1000/minute",
+        "registration": "1000/minute",
     },
 }
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"

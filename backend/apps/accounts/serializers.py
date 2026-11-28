@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from apps.accounts.constants import STAFF_ROLE_CODES
 from apps.accounts.models import Role, UserRole
 
 User = get_user_model()
@@ -97,3 +100,89 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def get_roles(self, obj):
         return role_list(obj)
+
+
+# Registration Serializers (ILMDAS-551, ILMDAS-552)
+
+# One message for a taken username or email, so the API does not say which one exists.
+DUPLICATE_ACCOUNT_MESSAGE = (
+    "An account cannot be created with these details. "
+    "If you already have an account, sign in instead."
+)
+
+
+def account_details_taken(username: str, email: str) -> bool:
+    return (
+        User.objects.filter(username__iexact=username).exists()
+        or User.objects.filter(email__iexact=email).exists()
+    )
+
+
+def check_password_strength(password: str, **user_fields: str) -> None:
+    """Run the configured password validators, comparing against the account details."""
+    try:
+        validate_password(password, user=User(**user_fields))
+    except DjangoValidationError as exc:
+        raise serializers.ValidationError({"password": list(exc.messages)}) from exc
+
+
+class StaffAccountCreateSerializer(serializers.Serializer):
+    """A system administrator registers a staff account (ILMDAS-551)."""
+
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    roles = serializers.ListField(
+        child=serializers.ChoiceField(choices=STAFF_ROLE_CODES),
+        allow_empty=False,
+    )
+
+    def validate(self, attrs):
+        if account_details_taken(attrs["username"], attrs["email"]):
+            raise serializers.ValidationError(DUPLICATE_ACCOUNT_MESSAGE)
+        attrs["roles"] = list(dict.fromkeys(attrs["roles"]))  # drop repeats, keep order
+        return attrs
+
+
+class RegistrationSerializer(serializers.Serializer):
+    """Public self-registration (ILMDAS-552)."""
+
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    accept_terms = serializers.BooleanField()
+
+    def validate_accept_terms(self, value: bool) -> bool:
+        if not value:
+            raise serializers.ValidationError("You must accept the terms to register.")
+        return value
+
+    def validate(self, attrs):
+        if account_details_taken(attrs["username"], attrs["email"]):
+            raise serializers.ValidationError(DUPLICATE_ACCOUNT_MESSAGE)
+        check_password_strength(
+            attrs["password"],
+            username=attrs["username"],
+            email=attrs["email"],
+            first_name=attrs["first_name"],
+            last_name=attrs.get("last_name", ""),
+        )
+        return attrs
+
+
+class AccountLinkSerializer(serializers.Serializer):
+    """The uid and token from an emailed link."""
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+
+class AcceptInviteSerializer(AccountLinkSerializer):
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+
+class ResendVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()

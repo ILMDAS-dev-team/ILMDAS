@@ -15,6 +15,9 @@ if _debug_env is not None and _debug_env.strip().lower() not in ("false", "0", "
 DEBUG = False
 ENVIRONMENT = "production"
 
+# Real email delivery in production: SMTP unless EMAIL_BACKEND names another provider.
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND") or "django.core.mail.backends.smtp.EmailBackend"
+
 # SEC-05: HTTPS and cookie hardening
 SECURE_SSL_REDIRECT = True
 SECURE_HSTS_SECONDS = 31536000

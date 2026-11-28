@@ -5,6 +5,7 @@ from django.urls import path
 from .views import (
     CurrentUserRolesView,
     RoleListView,
+    StaffAccountCreateView,
     UserListView,
     UserRoleAssignView,
     UserRoleRemoveView,
@@ -13,6 +14,7 @@ from .views import (
 urlpatterns = [
     path("roles/", RoleListView.as_view(), name="role-list"),
     path("users/", UserListView.as_view(), name="user-list"),
+    path("users/staff/", StaffAccountCreateView.as_view(), name="staff-account-create"),
     path("users/me/roles/", CurrentUserRolesView.as_view(), name="current-user-roles"),
     path(
         "users/<int:user_id>/roles/",

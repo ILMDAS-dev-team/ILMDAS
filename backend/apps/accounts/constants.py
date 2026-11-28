@@ -7,6 +7,7 @@ ROLE_JOURNAL_EDITOR = "journal_editor"
 ROLE_MEMBER = "member"
 ROLE_MANAGER = "manager"
 ROLE_INTEGRATION_ADMINISTRATOR = "integration_administrator"
+ROLE_GUEST = "guest"
 
 ALL_ROLE_CODES = [
     ROLE_SYSTEM_ADMINISTRATOR,
@@ -16,6 +17,7 @@ ALL_ROLE_CODES = [
     ROLE_MEMBER,
     ROLE_MANAGER,
     ROLE_INTEGRATION_ADMINISTRATOR,
+    ROLE_GUEST,
 ]
 
 ROLE_NAMES = {
@@ -26,6 +28,7 @@ ROLE_NAMES = {
     ROLE_MEMBER: "Member",
     ROLE_MANAGER: "Manager",
     ROLE_INTEGRATION_ADMINISTRATOR: "Integration Administrator",
+    ROLE_GUEST: "Guest",
 }
 
 ROLE_DESCRIPTIONS = {
@@ -36,4 +39,17 @@ ROLE_DESCRIPTIONS = {
     ROLE_MEMBER: "Standard member access to public and member features.",
     ROLE_MANAGER: "Management oversight across modules.",
     ROLE_INTEGRATION_ADMINISTRATOR: "Integration and external system configuration.",
+    ROLE_GUEST: "Registered account without a membership: public discovery and own account.",
 }
+
+# Roles a system administrator can grant when registering a staff account (ILMDAS-551).
+# Guest and member are never granted by hand: every new account starts as a guest, and
+# the member role comes only from an approved membership (ILMDAS-554).
+STAFF_ROLE_CODES = [
+    ROLE_SYSTEM_ADMINISTRATOR,
+    ROLE_LIBRARIAN,
+    ROLE_DIGITAL_ARCHIVIST,
+    ROLE_JOURNAL_EDITOR,
+    ROLE_MANAGER,
+    ROLE_INTEGRATION_ADMINISTRATOR,
+]
