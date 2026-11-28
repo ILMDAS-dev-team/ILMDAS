@@ -42,6 +42,7 @@ DUMMY_PASSWORD = "local-only"  # pragma: allowlist secret
 APP_NAMES = [
     "core",
     "accounts",
+    "homepage",
     "catalogue",
     "circulation",
     "archive",
