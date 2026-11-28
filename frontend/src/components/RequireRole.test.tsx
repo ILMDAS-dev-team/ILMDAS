@@ -113,3 +113,29 @@ describe("RequireRole when signed out", () => {
     expect(screen.queryByTestId("protected-content")).toBeNull()
   })
 })
+
+describe("RequireRole with anyRole", () => {
+  const TestComponent = () => <div data-testid="protected-content">Protected</div>
+  const librarian = { ...mockUser, roles: [{ code: "librarian", name: "Librarian" }] }
+
+  test("allows a user who holds any one of the roles", () => {
+    ;(useAuth as jest.Mock).mockReturnValue({ user: librarian, loading: false })
+    render(
+      <RequireRole anyRole={["librarian", "manager"]}>
+        <TestComponent />
+      </RequireRole>
+    )
+    expect(screen.getByTestId("protected-content")).toBeInTheDocument()
+  })
+
+  test("denies a user who holds none of the roles", () => {
+    ;(useAuth as jest.Mock).mockReturnValue({ user: mockMemberUser, loading: false })
+    render(
+      <RequireRole anyRole={["librarian", "manager"]}>
+        <TestComponent />
+      </RequireRole>
+    )
+    expect(screen.queryByTestId("protected-content")).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Access Denied" })).toBeInTheDocument()
+  })
+})

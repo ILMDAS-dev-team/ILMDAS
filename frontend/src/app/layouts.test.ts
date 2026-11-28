@@ -38,6 +38,8 @@ test("staff layout sends visitors without a staff session to login", () => {
   expect(layout.includes("<AccessDenied />")).toBe(true)
   // Audit log link is admin-only, like Administration
   expect(layout.includes('"/staff/administration", "/staff/audit"')).toBe(true)
+  // Staff registration is admin-only too (ILMDAS-551)
+  expect(layout.includes('"/staff/audit", "/staff/accounts"])')).toBe(true)
   expect(layout.includes("if (!user) {")).toBe(true)
   expect(layout.includes('redirect("/login?next=/staff")')).toBe(true)
 })

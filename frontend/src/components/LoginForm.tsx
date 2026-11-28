@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { FormEvent, useState } from "react"
 import { apiFetch, csrfHeader, ensureCsrfCookie } from "@/lib/api"
 import { navigateTo } from "@/lib/navigation"
@@ -135,11 +136,8 @@ export function LoginForm({ title, redirectTo }: LoginFormProps) {
         </button>
 
         <p className="login-footer">
-          <span>New member?</span>
-          {/* Membership sign-up is a later ticket */}
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            Create an account
-          </a>
+          <span>New here?</span>
+          <Link href="/register">Create an account</Link>
         </p>
       </form>
     </section>

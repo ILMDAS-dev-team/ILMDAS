@@ -17,12 +17,13 @@ const baseLinks = [
   { href: "/staff/publishing", label: "Publishing" },
   { href: "/staff/reports", label: "Reports" },
   { href: "/staff/administration", label: "Administration" },
+  { href: "/staff/accounts", label: "Staff accounts" },
   { href: "/staff/audit", label: "Audit log" },
   { href: "/staff/status", label: "IIIF status" },
   { href: "/logout", label: "Sign out" },
 ]
 
-const ADMIN_ONLY_LINKS = new Set(["/staff/administration", "/staff/audit"])
+const ADMIN_ONLY_LINKS = new Set(["/staff/administration", "/staff/audit", "/staff/accounts"])
 
 export default function StaffLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()

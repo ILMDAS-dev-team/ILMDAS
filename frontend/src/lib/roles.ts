@@ -9,6 +9,8 @@ export const ROLE_JOURNAL_EDITOR = "journal_editor"
 export const ROLE_MEMBER = "member"
 export const ROLE_MANAGER = "manager"
 export const ROLE_INTEGRATION_ADMINISTRATOR = "integration_administrator"
+// Every new account starts as a guest; the member role comes from a membership (ILMDAS-550).
+export const ROLE_GUEST = "guest"
 
 export const ALL_ROLE_CODES = [
   ROLE_SYSTEM_ADMINISTRATOR,
@@ -16,6 +18,17 @@ export const ALL_ROLE_CODES = [
   ROLE_DIGITAL_ARCHIVIST,
   ROLE_JOURNAL_EDITOR,
   ROLE_MEMBER,
+  ROLE_MANAGER,
+  ROLE_INTEGRATION_ADMINISTRATOR,
+  ROLE_GUEST,
+]
+
+/** Roles a system administrator can grant when registering staff (ILMDAS-551). */
+export const STAFF_ROLE_CODES = [
+  ROLE_SYSTEM_ADMINISTRATOR,
+  ROLE_LIBRARIAN,
+  ROLE_DIGITAL_ARCHIVIST,
+  ROLE_JOURNAL_EDITOR,
   ROLE_MANAGER,
   ROLE_INTEGRATION_ADMINISTRATOR,
 ]
@@ -28,6 +41,7 @@ export const ROLE_NAMES: Record<string, string> = {
   [ROLE_MEMBER]: "Member",
   [ROLE_MANAGER]: "Manager",
   [ROLE_INTEGRATION_ADMINISTRATOR]: "Integration Administrator",
+  [ROLE_GUEST]: "Guest",
 }
 
 export type UserRole = {
@@ -58,13 +72,5 @@ export function isSystemAdministrator(user: AuthUser | null | undefined): boolea
 
 export function isStaff(user: AuthUser | null | undefined): boolean {
   if (!user) return false
-  const staffRoles = [
-    ROLE_SYSTEM_ADMINISTRATOR,
-    ROLE_LIBRARIAN,
-    ROLE_DIGITAL_ARCHIVIST,
-    ROLE_JOURNAL_EDITOR,
-    ROLE_MANAGER,
-    ROLE_INTEGRATION_ADMINISTRATOR,
-  ]
-  return user.roles.some((r) => staffRoles.includes(r.code))
+  return user.roles.some((r) => STAFF_ROLE_CODES.includes(r.code))
 }
