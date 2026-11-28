@@ -53,12 +53,22 @@ export function HeroSlideshow() {
           aria-hidden={index !== activeIndex}
         >
           <Image
+            className="hero-slide-backdrop"
             src={slide.src}
             alt=""
             fill
             priority={index === activeIndex}
             sizes="100vw"
             style={{ objectFit: "cover", objectPosition: "center" }}
+          />
+          <Image
+            className="hero-slide-image"
+            src={slide.src}
+            alt=""
+            fill
+            priority={index === activeIndex}
+            sizes="100vw"
+            style={{ objectFit: "contain", objectPosition: "center" }}
           />
         </div>
       ))}

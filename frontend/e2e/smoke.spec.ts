@@ -15,7 +15,7 @@ test("public homepage loads with navigation and no staff links", async ({ page }
   const header = page.getByRole("banner")
   await expect(header.getByRole("link", { name: /IQQO Digital Library/ })).toBeVisible()
   await expect(header.getByRole("img", { name: "IQQO Digital Library logo" })).toBeVisible()
-  await expect(header.getByRole("link", { name: "Facebook" })).toBeVisible()
+  await expect(header.getByRole("link", { name: /Facebook|YouTube|Instagram|X/ })).toHaveCount(0)
   await expect(page.getByRole("region", { name: /hero picture slideshow/i })).toBeVisible()
   await expect(page.getByRole("button", { name: "Next hero picture" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Slide 1 of 4" })).toBeVisible()
@@ -36,6 +36,21 @@ test("public homepage loads with navigation and no staff links", async ({ page }
   await expect(page.getByRole("contentinfo").getByRole("link", { name: "YouTube" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Administration" })).toHaveCount(0)
   await expect(page.locator('a[href="/staff"]')).toHaveCount(0)
+})
+
+test("hero fills the viewport without clipping its image", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto("/")
+
+  const hero = page.locator(".hero-panel")
+  await expect(hero).toHaveCSS("box-sizing", "border-box")
+  const box = await hero.boundingBox()
+  expect(box?.x).toBe(0)
+  expect(box?.width).toBe(375)
+  expect(box?.height).toBeLessThanOrEqual(812)
+  const offersBox = await page.locator("#offers-title").boundingBox()
+  expect(offersBox?.y ?? 0).toBeGreaterThan(812)
+  await expect(page.locator(".hero-slide-image").first()).toHaveCSS("object-fit", "contain")
 })
 
 test("E-Book navigation opens the existing search route", async ({ page }) => {

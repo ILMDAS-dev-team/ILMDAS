@@ -11,6 +11,14 @@ test("renders picture slides with accessible controls", () => {
   expect(screen.getByRole("button", { name: "Slide 4 of 4" })).toBeInTheDocument()
 })
 
+test("keeps each hero picture whole inside a filled backdrop", () => {
+  const { container } = render(<HeroSlideshow />)
+  const activeSlide = container.querySelector(".hero-slide--active")
+
+  expect(activeSlide?.querySelector(".hero-slide-backdrop")).toHaveStyle("object-fit: cover")
+  expect(activeSlide?.querySelector(".hero-slide-image")).toHaveStyle("object-fit: contain")
+})
+
 test("starts on the first slide and advances with controls", () => {
   render(<HeroSlideshow />)
 

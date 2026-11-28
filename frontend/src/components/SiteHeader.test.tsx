@@ -34,7 +34,6 @@ test("shows public navigation and highlights the active page", () => {
   expect(screen.getByRole("link", { name: "E-Book" })).toHaveAttribute("aria-current", "page")
   expect(screen.getByRole("link", { name: "Catalogue" })).toHaveAttribute("href", "/catalogue")
   expect(screen.queryByRole("link", { name: "Administration" })).not.toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "Facebook" })).toHaveAttribute("target", "_blank")
   expect(screen.getByText("IQQO Digital Library")).toBeInTheDocument()
   expect(screen.getByText("Oromia Institution of Studies and Research")).toBeInTheDocument()
   expect(screen.getByRole("img", { name: "IQQO Digital Library logo" })).toBeInTheDocument()

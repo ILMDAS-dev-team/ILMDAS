@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Icon } from "@/components/Icon"
 import { LanguageSlot } from "@/components/LanguageSlot"
-import { SocialLinks } from "@/components/SocialLinks"
 import { useLanguage } from "@/context/LanguageContext"
 import { BRAND_LOGO, PROJECT_FULL_NAME, PROJECT_NAME, PROJECT_ORGANISATION } from "@/lib/brand"
 
@@ -76,7 +75,6 @@ export function SiteHeader({ links }: { links: NavLink[] }) {
           </nav>
 
           <div className="site-header-actions">
-            <SocialLinks className="header-social" />
             <LanguageSlot />
             <Link className="button button--dark" href="/login">
               {t("nav.signIn")}

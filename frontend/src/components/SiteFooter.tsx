@@ -53,7 +53,6 @@ export function SiteFooter() {
         <span>
           © {new Date().getFullYear()} {PROJECT_NAME}. {t("footer.rights")}
         </span>
-        <Link href={homepage.membership.path || "/membership"}>{t("nav.membership")}</Link>
       </div>
     </footer>
   )
