@@ -1,28 +1,29 @@
 import type { ReactNode } from "react"
-import { LanguageSlot } from "@/components/LanguageSlot"
+import { ScrollToTop } from "@/components/ScrollToTop"
+import { SiteFooter } from "@/components/SiteFooter"
+import { SiteHeader } from "@/components/SiteHeader"
+import { WebsiteProvider } from "@/context/WebsiteContext"
 
 const links = [
-  { href: "/", label: "Home" },
-  { href: "/opac", label: "OPAC" },
-  { href: "/about", label: "About" },
-  { href: "/login", label: "Sign in" },
+  { href: "/", label: "Home", translationKey: "nav.home" },
+  { href: "/opac", label: "E-Book", translationKey: "nav.ebooks" },
+  { href: "/catalogue", label: "Catalogue", translationKey: "nav.catalogue" },
+  { href: "/archive", label: "Archive", translationKey: "nav.archive" },
+  { href: "/membership", label: "Membership", translationKey: "nav.membership" },
+  { href: "/about", label: "About", translationKey: "nav.about" },
 ]
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="shell" data-shell="public">
-      <header>
-        <p>IQQO public catalogue</p>
-        <nav className="nav" aria-label="Public">
-          {links.map((link) => (
-            <a key={link.href} href={link.href}>
-              {link.label}
-            </a>
-          ))}
-        </nav>
-        <LanguageSlot />
-      </header>
-      <main>{children}</main>
+    <div className="public-site" data-shell="public">
+      <WebsiteProvider>
+        <SiteHeader links={links} />
+        <main id="main-content" className="shell">
+          {children}
+        </main>
+        <SiteFooter />
+        <ScrollToTop />
+      </WebsiteProvider>
     </div>
   )
 }

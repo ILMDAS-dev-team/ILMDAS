@@ -1,19 +1,30 @@
 "use client"
 
-const languages = [
-  { code: "om", label: "Afaan Oromo" },
-  { code: "en", label: "English" },
-  { code: "am", label: "Amharic" },
-]
+import { useLanguage } from "@/context/LanguageContext"
+import { isLanguageCode, LANGUAGES } from "@/lib/i18n"
 
 export function LanguageSlot() {
+  const { language, setLanguage, t } = useLanguage()
+
   return (
     <div className="language-slot" data-language-slot="true">
-      {languages.map((language) => (
-        <button key={language.code} type="button" lang={language.code} disabled>
-          {language.label}
-        </button>
-      ))}
+      <label className="visually-hidden" htmlFor="site-language">
+        {t("nav.language")}
+      </label>
+      <select
+        id="site-language"
+        value={language}
+        onChange={(event) => {
+          const next = event.target.value
+          if (isLanguageCode(next)) setLanguage(next)
+        }}
+      >
+        {LANGUAGES.map((item) => (
+          <option key={item.code} value={item.code} lang={item.code}>
+            {item.nativeLabel}
+          </option>
+        ))}
+      </select>
     </div>
   )
 }
