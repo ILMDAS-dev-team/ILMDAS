@@ -26,7 +26,7 @@ test("ends the session and shows the signed-out confirmation", async () => {
     headers: { "X-CSRFToken": "csrf-token" },
   })
   expect(screen.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", "/login")
-  expect(screen.getByRole("link", { name: "Go to the catalogue" })).toHaveAttribute("href", "/opac")
+  expect(screen.getByRole("link", { name: "Go to E-Books" })).toHaveAttribute("href", "/opac")
 })
 
 test("still confirms sign-out when no session was left", async () => {
