@@ -4,6 +4,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 import { useAuth } from "@/context/AuthContext"
+import AccessDenied from "@/components/AccessDenied"
 import { LanguageSlot } from "@/components/LanguageSlot"
 import { isSystemAdministrator, isStaff } from "@/lib/roles"
 
@@ -16,9 +17,12 @@ const baseLinks = [
   { href: "/staff/publishing", label: "Publishing" },
   { href: "/staff/reports", label: "Reports" },
   { href: "/staff/administration", label: "Administration" },
+  { href: "/staff/audit", label: "Audit log" },
   { href: "/staff/status", label: "IIIF status" },
   { href: "/logout", label: "Sign out" },
 ]
+
+const ADMIN_ONLY_LINKS = new Set(["/staff/administration", "/staff/audit"])
 
 export default function StaffLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -29,7 +33,7 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
     const admin = isSystemAdministrator(user)
     const staff = isStaff(user)
     const filtered = baseLinks.filter((link) => {
-      if (link.href === "/staff/administration") return admin
+      if (ADMIN_ONLY_LINKS.has(link.href)) return admin
       return staff
     })
     setLinks(filtered)
@@ -44,8 +48,17 @@ export default function StaffLayout({ children }: { children: ReactNode }) {
     )
   }
 
-  if (!user || !isStaff(user)) {
+  if (!user) {
     redirect("/login?next=/staff")
+  }
+
+  // Signed in without a staff role: show the denial instead of looping back to login.
+  if (!isStaff(user)) {
+    return (
+      <div className="shell">
+        <AccessDenied />
+      </div>
+    )
   }
 
   return (

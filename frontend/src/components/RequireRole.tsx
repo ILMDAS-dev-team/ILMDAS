@@ -16,8 +16,12 @@ export function RequireRole({ children, role, requireStaff = false }: RequireRol
   const [authorized, setAuthorized] = useState<boolean | null>(null)
 
   useEffect(() => {
-    if (loading || !user) {
+    if (loading) {
       setAuthorized(null)
+      return
+    }
+    if (!user) {
+      setAuthorized(false)
       return
     }
     if (role) {

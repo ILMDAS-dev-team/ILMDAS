@@ -8,13 +8,41 @@ from django.conf import settings
 from django.db import models
 
 
+class AuditRecordImmutable(Exception):
+    """Raised when code tries to change or remove an audit record (FR-SEC-009 in SRS v1.0)."""
+
+
+class AuditOutcome(models.TextChoices):
+    SUCCESS = "success", "Success"
+    FAILURE = "failure", "Failure"
+    DENIED = "denied", "Denied"
+
+
+class AuditRecordQuerySet(models.QuerySet):
+    """Append-only: bulk update and bulk delete are refused."""
+
+    def update(self, **kwargs):
+        raise AuditRecordImmutable("Audit records cannot be updated.")
+
+    def delete(self):
+        raise AuditRecordImmutable("Audit records cannot be deleted.")
+
+
 class AuditRecord(models.Model):
+    """One audit event (the story's "AuditEvent"). Rows are append-only.
+
+    The database adds a trigger on PostgreSQL (migration 0002) so update and delete are
+    refused even outside Django.
+    """
+
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    # PROTECT: deleting a user would otherwise rewrite (SET_NULL) their audit rows.
+    # Accounts are deactivated, not deleted (ILMDAS-26 lifecycle).
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name="audit_records",
     )
     actor_username = models.CharField(max_length=150, blank=True)
@@ -23,7 +51,15 @@ class AuditRecord(models.Model):
     object_id = models.CharField(max_length=255, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     correlation_id = models.CharField(max_length=64, blank=True)
+    outcome = models.CharField(
+        max_length=16,
+        choices=AuditOutcome.choices,
+        default=AuditOutcome.SUCCESS,
+        db_index=True,
+    )
     details = models.JSONField(default=dict, blank=True)
+
+    objects = AuditRecordQuerySet.as_manager()
 
     class Meta:
         ordering = ["-timestamp"]
@@ -36,6 +72,44 @@ class AuditRecord(models.Model):
         actor = self.actor_username or (self.actor.username if self.actor else "system")
         return f"[{self.timestamp.isoformat()}] {actor} - {self.action} ({self.object_type}:{self.object_id})"
 
+    def save(self, *args, **kwargs) -> None:
+        if not self._state.adding:
+            raise AuditRecordImmutable("Audit records cannot be updated.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise AuditRecordImmutable("Audit records cannot be deleted.")
+
+
+def sanitize_audit_details(data: Any) -> Any:
+    """Recursively scrub sensitive fields (passwords, tokens, secrets, credentials, api keys)."""
+    if isinstance(data, dict):
+        sanitized = {}
+        for k, v in data.items():
+            normalized_k = str(k).lower().replace("_", "").replace("-", "")
+            if any(
+                sensitive in normalized_k
+                for sensitive in (
+                    "password",
+                    "secret",
+                    "token",
+                    "credential",
+                    "apikey",
+                    "privatekey",
+                    "authorization",
+                    "cookie",
+                    "session",
+                    "otp",
+                )
+            ):
+                sanitized[k] = "[REDACTED]"
+            else:
+                sanitized[k] = sanitize_audit_details(v)
+        return sanitized
+    if isinstance(data, list):
+        return [sanitize_audit_details(item) for item in data]
+    return data
+
 
 def record_audit_event(
     action: str,
@@ -44,6 +118,7 @@ def record_audit_event(
     object_id: str = "",
     details: dict | None = None,
     request: Any = None,
+    outcome: str = AuditOutcome.SUCCESS,
 ) -> AuditRecord:
     """Record a security or domain event in the audit trail."""
     actor_obj = None
@@ -68,6 +143,8 @@ def record_audit_event(
         elif isinstance(actor, str):
             actor_name = actor
 
+    safe_details = sanitize_audit_details(details) if details else {}
+
     return AuditRecord.objects.create(
         actor=actor_obj,
         actor_username=actor_name,
@@ -76,5 +153,6 @@ def record_audit_event(
         object_id=str(object_id),
         ip_address=ip_address,
         correlation_id=correlation_id,
-        details=details or {},
+        outcome=outcome,
+        details=safe_details,
     )

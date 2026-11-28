@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from django.core.exceptions import SuspiciousOperation
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import Http404
 from rest_framework.exceptions import (
     APIException,
@@ -54,6 +55,9 @@ class ServiceUnavailable(APIException):
 def classify(exc: Exception) -> tuple[str, int, object | None]:
     if isinstance(exc, ValidationError):
         return "validation_error", 400, exc.detail
+    if isinstance(exc, DjangoValidationError):
+        errors = exc.message_dict if hasattr(exc, "message_dict") else exc.messages
+        return "validation_error", 400, errors
     if isinstance(exc, SuspiciousOperation):
         return "validation_error", 400, None
     if isinstance(exc, NotAuthenticated | AuthenticationFailed):
@@ -63,7 +67,10 @@ def classify(exc: Exception) -> tuple[str, int, object | None]:
     if isinstance(exc, NotFound | Http404):
         return "not_found", 404, None
     if isinstance(exc, Conflict) or getattr(exc, "status_code", None) == 409:
-        return "conflict", 409, None
+        # A Conflict raised with its own (code-authored, safe) reason passes it on.
+        reason = getattr(exc, "detail", None)
+        has_reason = isinstance(exc, Conflict) and str(reason) != Conflict.default_detail
+        return "conflict", 409, [str(reason)] if has_reason else None
     if isinstance(exc, Throttled):
         return "rate_limit", 429, None
     status_code = getattr(exc, "status_code", 500)
