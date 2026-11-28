@@ -6,3 +6,6 @@ ruff==0.6.9
 mypy==1.15.0
 django-stubs==5.2.2
 pre-commit==4.2.0
+# Used by scripts/ci-local.sh (secret scan and dependency audit), also in the dev image.
+detect-secrets==1.5.0
+pip-audit==2.10.1
