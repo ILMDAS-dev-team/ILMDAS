@@ -57,7 +57,7 @@ export function LogoutScreen() {
                 Sign in again
               </a>
               <a className="button-secondary" href="/opac">
-                Go to the catalogue
+                Go to E-Books
               </a>
             </div>
             <p className="logout-note">

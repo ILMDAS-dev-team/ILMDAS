@@ -95,6 +95,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.audit",
     "apps.core",
+    "apps.homepage",
     "apps.catalogue",
     "apps.circulation",
     "apps.archive",
