@@ -48,7 +48,9 @@ those values in code or fixtures.
 ## Git hooks and local CI
 
 `pre-commit` is a host tool, even though Django runs in Docker. Install it once in
-a host virtualenv, then install both hooks from the repo root (Git Bash on Windows):
+a host virtualenv (or with `pipx install pre-commit`), then install both hooks from
+the repo root (Git Bash on Windows). The push hook runs the backend checks in Docker
+when Docker is running (see "Where the backend checks run" below):
 
 ```bash
 cd backend
@@ -73,6 +75,48 @@ Run the local CI by hand at any time: `scripts/ci-local.sh` (everything),
 progress and names the step that failed. The frontend needs `npm ci` in
 `frontend/` first. Skip the push hook once with `git push --no-verify`, for urgent
 cases only, since GitHub CI still runs.
+
+### Where the backend checks run
+
+The backend checks (ruff, mypy, secret scan, pip-audit, pytest) run **in the dev
+backend Docker image** whenever Docker is running. You don't need mypy or the other
+tools on your machine. The script:
+
+- builds the image from `docker-compose.dev.yml` first. This is quick when nothing
+  has changed, and it picks up changes to `backend/requirements/`.
+- uses `docker compose exec` if the backend container is running, or a one-off
+  container (`docker compose run --rm --no-deps`) if it isn't. Postgres,
+  Elasticsearch and MinIO don't need to be up, because the tests use SQLite.
+- if the running container is older than the image and lacks a tool (for example,
+  after `requirements/` changed), the script says so and uses one-off containers
+  from the new image. To update the running container, run
+  `docker compose -f docker-compose.dev.yml up -d --build`. `make up` does the same,
+  but Git Bash on Windows doesn't include `make`.
+- keeps the mypy, ruff, coverage and pip-audit caches in the Docker volume
+  `ilmdas_ci_home`, not in `backend/`. Clear them with `docker volume rm ilmdas_ci_home`.
+
+If Docker isn't running, the script falls back to a host virtualenv. It uses the
+active `$VIRTUAL_ENV`, then `backend/.venv`, then `.venv` or `venv` at the repo root.
+Choose the runner yourself with `CI_LOCAL_BACKEND`:
+
+```bash
+CI_LOCAL_BACKEND=docker scripts/ci-local.sh backend
+CI_LOCAL_BACKEND=venv scripts/ci-local.sh backend
+```
+
+A host Python is still needed for `pre-commit` itself: the venv above, or
+`pipx install pre-commit`. The frontend checks always run natively with npm.
+
+### When a hook fails
+
+- **Commit stopped after "ruff" or "ruff-format" says "Failed" / "files were
+  modified":** the hook fixed or reformatted your files and stopped the commit, on
+  purpose, so you can see the change. Run `git add` on those files and commit again.
+- **Push stopped with "These backend tools are not installed in that Python":**
+  the venv runner was used, and the Python it names doesn't have the tools. This
+  happens, for example, when you installed mypy into a different venv. Either start
+  Docker and push again, or install the tools into the Python the message names:
+  `<that python> -m pip install -r backend/requirements/development.txt`.
 
 ## PR checklist
 
