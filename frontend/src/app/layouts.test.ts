@@ -11,7 +11,8 @@ test("public shell has no administration or staff links", () => {
   expect(layout.includes("/staff")).toBe(false)
   expect(layout.includes("IIIF status")).toBe(false)
   expect(layout.includes("Home")).toBe(true)
-  expect(layout.includes("OPAC")).toBe(true)
+  expect(layout.includes("E-Book")).toBe(true)
+  expect(layout.includes("Catalogue")).toBe(true)
 })
 
 test("staff shell reserves the module places", () => {
@@ -41,7 +42,9 @@ test("shells fit a 360px viewport and a desktop width", () => {
   expect(css.includes("width: 100%")).toBe(true)
   expect(css.includes("box-sizing: border-box")).toBe(true)
   expect(css.includes("@media (max-width: 360px)")).toBe(true)
-  expect(css.includes("max-width: 72rem")).toBe(true)
+  expect(css.includes(".public-site")).toBe(true)
+  expect(css.includes("--home-teal")).toBe(true)
+  expect(css.includes("--home-green-deep")).toBe(true)
   const publicLayout = read("src/app/(public)/layout.tsx")
   const staffLayout = read("src/app/(staff)/staff/layout.tsx")
   expect(publicLayout.includes('className="shell"')).toBe(true)
